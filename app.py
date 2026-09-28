@@ -122,7 +122,8 @@ else:
             "hvor kunne du bedst tænke dig at undersøge, "
             "om der gemmer sig et uudnyttet potentiale?"
         )
-
+    if st.session_state.ai_spoergsmaal:
+        st.success(st.session_state.ai_spoergsmaal)
     st.write(spoergsmaal)
 
     svar = st.text_area(
