@@ -131,7 +131,7 @@ else:
     )
 
     if st.button("Gem svar og fortsæt", use_container_width=True):
-    if svar.strip():
+        if svar.strip():
         st.session_state.svar_1 = svar.strip()
 
         prompt = f"""
