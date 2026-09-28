@@ -72,7 +72,7 @@ elif st.session_state.virksomhed is None:
                 "Skriv kort, hvad virksomheden arbejder med, før du fortsætter."
             )
 
-    if st.button("← Tilbage"):
+    if st.button("← Tilbage", key="tilbage_virksomhed"):
         st.session_state.valgt_problem = None
         st.rerun()
 
