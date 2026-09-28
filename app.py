@@ -132,40 +132,40 @@ else:
 
     if st.button("Gem svar og fortsæt", use_container_width=True):
         if svar.strip():
-        st.session_state.svar_1 = svar.strip()
-
-        prompt = f"""
-Du er Undersøgeren i leanAKey.
-
-Din opgave er kun at stille ét næste spørgsmål, som hjælper med at forstå
-kundens konkrete situation bedre.
-
-Du må ikke:
-- diagnosticere problemet
-- foreslå en løsning
-- foreslå et værktøj eller produkt
-- antage en årsag
-- stille flere spørgsmål på én gang
-
-Brug kundens egne oplysninger og stil ét kort, naturligt spørgsmål på dansk.
-
-Kunden valgte:
-{st.session_state.valgt_problem}
-
-Virksomheden arbejder med:
-{st.session_state.virksomhed}
-
-Kundens første svar:
-{st.session_state.svar_1}
-"""
-
-        response = client.responses.create(
-            model="gpt-5.6-luna",
-            input=prompt
-        )
-
-        st.session_state.ai_spoergsmaal = response.output_text
-        st.rerun()
+            st.session_state.svar_1 = svar.strip()
+    
+            prompt = f"""
+    Du er Undersøgeren i leanAKey.
+    
+    Din opgave er kun at stille ét næste spørgsmål, som hjælper med at forstå
+    kundens konkrete situation bedre.
+    
+    Du må ikke:
+    - diagnosticere problemet
+    - foreslå en løsning
+    - foreslå et værktøj eller produkt
+    - antage en årsag
+    - stille flere spørgsmål på én gang
+    
+    Brug kundens egne oplysninger og stil ét kort, naturligt spørgsmål på dansk.
+    
+    Kunden valgte:
+    {st.session_state.valgt_problem}
+    
+    Virksomheden arbejder med:
+    {st.session_state.virksomhed}
+    
+    Kundens første svar:
+    {st.session_state.svar_1}
+    """
+    
+            response = client.responses.create(
+                model="gpt-5.6-luna",
+                input=prompt
+            )
+    
+            st.session_state.ai_spoergsmaal = response.output_text
+            st.rerun()
 
     else:
         st.warning("Skriv lidt om det, du oplever, før du fortsætter.")
