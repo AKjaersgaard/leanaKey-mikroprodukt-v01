@@ -13,6 +13,9 @@ if "valgt_problem" not in st.session_state:
 if "virksomhed" not in st.session_state:
     st.session_state.virksomhed = None
 
+if "svar_1" not in st.session_state:
+    st.session_state.svar_1 = None
+
 st.title("leanAKey")
 
 
@@ -73,16 +76,62 @@ else:
 
     st.subheader("Lad os se lidt nærmere på det")
 
-    st.write(
-        f"Du arbejder med **{st.session_state.virksomhed}**."
+    problem = st.session_state.valgt_problem
+    virksomhed = st.session_state.virksomhed
+
+    # Boksen bestemmer det første spørgsmål – ikke konklusionen
+    if problem == "Jeg mangler tid…":
+        spoergsmaal = (
+            f"Når du tænker på arbejdet i din {virksomhed}, "
+            "hvornår oplever du især, at tiden ikke slår til?"
+        )
+
+    elif problem == "Jeg mangler noget for at komme videre…":
+        spoergsmaal = (
+            f"Når arbejdet går i stå i din {virksomhed}, "
+            "hvad oplever du typisk, at du mangler for at kunne fortsætte?"
+        )
+
+    elif problem == "Jeg gør ting om nogle gange…":
+        spoergsmaal = (
+            f"Hvilke ting i din {virksomhed} oplever du, "
+            "at du nogle gange må gøre om?"
+        )
+
+    elif problem == "Det burde kunne gøres lettere…":
+        spoergsmaal = (
+            f"Hvilken del af arbejdet i din {virksomhed} "
+            "føles mere besværlig, end du synes den burde være?"
+        )
+
+    elif problem == "Jeg har noget, jeg ikke får brugt/solgt…":
+        spoergsmaal = (
+            f"Hvad har du i din {virksomhed}, "
+            "som du oplever ikke bliver brugt eller solgt som forventet?"
+        )
+
+    else:
+        spoergsmaal = (
+            f"Hvis du ser på din {virksomhed} som helhed, "
+            "hvor kunne du bedst tænke dig at undersøge, "
+            "om der gemmer sig et uudnyttet potentiale?"
+        )
+
+    st.write(spoergsmaal)
+
+    svar = st.text_area(
+        "Skriv med dine egne ord:",
+        placeholder="Du behøver ikke kende årsagen – beskriv bare, hvad du oplever."
     )
 
-    st.write(
-        f"Du valgte **{st.session_state.valgt_problem}**."
-    )
-
-    st.write("Her kommer vores første egentlige spørgsmål i næste version.")
+    if st.button("Gem svar og fortsæt", use_container_width=True):
+        if svar.strip():
+            st.session_state.svar_1 = svar.strip()
+            st.success("Svaret er gemt.")
+        else:
+            st.warning("Skriv lidt om det, du oplever, før du fortsætter.")
 
     if st.button("← Tilbage"):
         st.session_state.virksomhed = None
+        st.session_state.svar_1 = None
         st.rerun()
