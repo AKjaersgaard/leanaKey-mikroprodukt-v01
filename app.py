@@ -170,8 +170,8 @@ else:
     else:
         st.warning("Skriv lidt om det, du oplever, før du fortsætter.")
 
-if st.button("← Tilbage"):
-    st.session_state.virksomhed = None
-    st.session_state.svar_1 = None
-    st.rerun()
+        if st.button("← Tilbage"):
+            st.session_state.virksomhed = None
+            st.session_state.svar_1 = None
+            st.rerun()
 
