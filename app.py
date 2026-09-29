@@ -22,6 +22,9 @@ if "samtale" not in st.session_state:
 if "aktuelt_spoergsmaal" not in st.session_state:
     st.session_state.aktuelt_spoergsmaal = None
 
+if "observation_mangler" not in st.session_state:
+    st.session_state.observation_mangler = None
+
 st.title("leanAKey")
 
 
