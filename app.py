@@ -25,6 +25,9 @@ if "aktuelt_spoergsmaal" not in st.session_state:
 if "observation_mangler" not in st.session_state:
     st.session_state.observation_mangler = None
 
+if "undersoegelse_klar" not in st.session_state:
+    st.session_state.undersoegelse_klar = None
+
 st.title("leanAKey")
 
 
@@ -72,13 +75,18 @@ def vurder_naeste_skridt():
     prompt = f"""
 Du er Undersøgeren i leanAKey.
 
-Efter hvert kundesvar skal du vælge præcis én af to handlinger:
+Efter hvert kundesvar skal du vælge præcis én af tre handlinger:
 
 SPØRG: hvis kunden sandsynligvis selv kan svare på ét kort næste spørgsmål,
 som reducerer usikkerheden.
 
 OBSERVÉR: hvis den vigtigste manglende oplysning ikke bør gættes frem,
 men kræver at kunden observerer, tæller eller måler noget i det virkelige arbejde.
+
+KLAR: hvis samtalen allerede indeholder tilstrækkelig konkret information til,
+at Undersøgeren ikke behøver stille flere spørgsmål. KLAR betyder kun, at
+undersøgelsen kan sendes videre til næste fase. Det er ikke en diagnose,
+løsning eller salgsbeslutning.
 
 Regler:
 - diagnosticér ikke problemet
@@ -99,6 +107,7 @@ UKENDT = vigtig information vi endnu ikke har
 Svar KUN i ét af disse formater:
 SPØRG: <ét kort naturligt spørgsmål på dansk>
 OBSERVÉR: <én kort sætning om hvad der mangler at blive observeret>
+KLAR: <én kort neutral sætning om hvilket konkret grundlag der nu er afdækket>
 
 Kunden valgte:
 {st.session_state.valgt_problem}
@@ -118,6 +127,9 @@ Samtalen indtil nu:
 
     if tekst.upper().startswith("OBSERVÉR:") or tekst.upper().startswith("OBSERVER:"):
         return "observer", tekst.split(":", 1)[1].strip()
+
+    if tekst.upper().startswith("KLAR:"):
+        return "klar", tekst.split(":", 1)[1].strip()
 
     if tekst.upper().startswith("SPØRG:") or tekst.upper().startswith("SPORG:"):
         return "spoerg", tekst.split(":", 1)[1].strip()
@@ -190,10 +202,14 @@ else:
         )
         st.write(f"**Det vi mangler at vide:** {st.session_state.observation_mangler}")
 
-    elif len(st.session_state.samtale) >= 6:
+    elif st.session_state.undersoegelse_klar:
+        st.success("Undersøgeren vurderer, at der nu er nok konkret information til næste fase.")
+        st.write(f"**Afdækket grundlag:** {st.session_state.undersoegelse_klar}")
+
+    elif len(st.session_state.samtale) >= 10:
         st.info(
-            "Testgrænsen på 6 spørgsmål er nået. "
-            "V0.7 stopper her uden at konkludere eller foreslå en løsning."
+            "Sikkerhedsgrænsen på 10 spørgsmål er nået. "
+            "V0.8 stopper her uden at diagnosticere, foreslå en løsning eller træffe en salgsbeslutning."
         )
 
     else:
@@ -214,11 +230,14 @@ else:
                     }
                 )
 
-                if len(st.session_state.samtale) < 6:
+                if len(st.session_state.samtale) < 10:
                     try:
                         handling, tekst = vurder_naeste_skridt()
                         if handling == "observer":
                             st.session_state.observation_mangler = tekst
+                            st.session_state.aktuelt_spoergsmaal = None
+                        elif handling == "klar":
+                            st.session_state.undersoegelse_klar = tekst
                             st.session_state.aktuelt_spoergsmaal = None
                         else:
                             st.session_state.aktuelt_spoergsmaal = tekst
@@ -238,4 +257,5 @@ else:
         st.session_state.samtale = []
         st.session_state.aktuelt_spoergsmaal = None
         st.session_state.observation_mangler = None
+        st.session_state.undersoegelse_klar = None
         st.rerun()
