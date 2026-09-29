@@ -405,6 +405,45 @@ TESTCASES = [
  {"navn":"Forkert boks – procesproblem","boks":"Jeg har noget, jeg ikke får brugt/solgt…","virksomhed":"cykelværksted","forventet":"klar","samtale":[("Hvad får du ikke brugt?","Min tid. Cykler venter på reservedele."),("Hvad sker der?","Jeg starter og opdager bagefter at en del mangler."),("Betydning?","Cyklen optager plads og arbejdet stopper flere gange om ugen.")]}
 ]
 
+ROBUSTHEDSCASES = [
+ {"navn":"B&B – vinter, hverdagssprog","boks":"Jeg har noget, jeg ikke får brugt/solgt…","virksomhed":"jeg lejer tre små lejligheder ud","forventet":"udenfor","samtale":[("Hvad står ubrugt?","Altså om sommeren går det fint, men når det bliver koldt kan de bare stå tomme uge efter uge."),("Kan folk booke dem?","Ja ja, de er åbne. Der er bare nærmest ingen der spørger om vinteren."),("Hvad tror du ligger bag?","Vi gør faktisk ikke noget særligt for at få vintergæster.")]},
+ {"navn":"Café – rester, rodet svar","boks":"Jeg har noget, jeg ikke får brugt/solgt…","virksomhed":"lille café","forventet":"klar","samtale":[("Hvad oplever du?","Det er lidt forskelligt, men tit når vi lukker ligger der kager tilbage, nogle tager personalet og resten ryger ud."),("Er det enkeltstående?","Nej altså ikke præcis samme antal, men der er noget tilovers næsten hver dag.") ]},
+ {"navn":"Kvalitetskontrol – nødvendig men tidskrævende","boks":"Jeg mangler tid…","virksomhed":"vi laver fødevarer","forventet":"spoerg","samtale":[("Hvor forsvinder tiden?","Den der kontrol vi skal lave hver gang. Den tager en krig."),("Hvorfor gør I den?","Den skal vi. Det er fødevaresikkerhed, så den kan vi jo ikke bare springe over.") ]},
+ {"navn":"Flere processer – hverdagsbeskrivelse","forventet_afgraensning":"FLERE_FORBUNDNE","boks":"Det burde kunne gøres lettere…","virksomhed":"mindre produktion","forventet":"klar","samtale":[("Hvad bøvler?","Det starter tit med at noget ikke er kommet hjem, så laver planlægning det hele om, folk står og venter, og så hober tingene sig op ved kvalitet."),("Sker det flere steder?","Ja, det er både indkøb, planlægning, folk ude ved maskinerne og kvalitet. Det er ikke bare én ting.") ]},
+ {"navn":"Forkert boks – reservedele","boks":"Jeg har noget, jeg ikke får brugt/solgt…","virksomhed":"cykler og reparation","forventet":"klar","samtale":[("Hvad får du ikke brugt?","Det er nok mest tiden. Jeg går i gang med en cykel og så mangler den åndssvage lille del igen."),("Hvad betyder det?","Så står cyklen bare der og fylder, og jeg må stoppe og tage noget andet. Det sker flere gange på en uge.") ]}
+]
+
+def koer_robusthedstest():
+    gemt = (st.session_state.valgt_problem, st.session_state.virksomhed, list(st.session_state.samtale), st.session_state.undersoegelse_klar, st.session_state.observation_mangler, st.session_state.afgraensning)
+    resultater = []
+    api_kald = 0
+    try:
+        for case in ROBUSTHEDSCASES:
+            st.session_state.valgt_problem = case["boks"]
+            st.session_state.virksomhed = case["virksomhed"]
+            st.session_state.samtale = [{"spoergsmaal": q, "svar": a} for q, a in case["samtale"]]
+            handling, tekst = vurder_naeste_skridt()
+            api_kald += 1
+            status = None
+            afgraensning_output = ""
+            forventet_status = None
+            korrekt = handling == case["forventet"]
+            if handling == "klar":
+                st.session_state.undersoegelse_klar = tekst
+                st.session_state.observation_mangler = None
+                afgraensning_output = lav_afgraensning()
+                api_kald += 1
+                for linje in afgraensning_output.splitlines():
+                    if linje.upper().startswith("STATUS:"):
+                        status = linje.split(":", 1)[1].strip().upper()
+                        break
+                forventet_status = case.get("forventet_afgraensning", "AFGRÆNSET")
+                korrekt = korrekt and status == forventet_status
+            resultater.append({"case":case["navn"],"forventet":case["forventet"],"faktisk":handling,"status":status,"forventet_status":forventet_status,"bestaaet":korrekt,"output":tekst,"afgraensning_output":afgraensning_output})
+    finally:
+        st.session_state.valgt_problem, st.session_state.virksomhed, st.session_state.samtale, st.session_state.undersoegelse_klar, st.session_state.observation_mangler, st.session_state.afgraensning = gemt
+    return resultater, api_kald
+
 def koer_testbatteri():
     gemt = (st.session_state.valgt_problem, st.session_state.virksomhed, list(st.session_state.samtale), st.session_state.undersoegelse_klar, st.session_state.observation_mangler, st.session_state.afgraensning)
     resultater = []
@@ -533,6 +572,28 @@ if st.session_state.valgt_problem is None:
                                     st.text(k["afgraensning_output"])
                 except Exception:
                     st.error("Stabilitetstesten kunne ikke gennemføres. Prøv igen om lidt.")
+
+        st.divider()
+        st.caption("Testniveau 4: robusthed. Samme typer problemer er skrevet om til mere naturligt, rodet hverdagssprog. Ingen ekstra gentagelser.")
+        if st.button("Kør robusthedstest (5 nye formuleringer)", key="koer_robusthedstest"):
+            with st.spinner("Tester om motoren forstår mekanismen bag andre formuleringer…"):
+                try:
+                    robusthed, api_kald = koer_robusthedstest()
+                    bestaaet = sum(1 for r in robusthed if r["bestaaet"])
+                    st.write(f"**Robusthed: {bestaaet}/{len(robusthed)} bestået**")
+                    st.caption(f"API-kald i denne kørsel: {api_kald}. Testene bruger nye formuleringer, men samme beslutningsprincipper.")
+                    for nr, r in enumerate(robusthed, start=1):
+                        ikon = "✅" if r["bestaaet"] else "❌"
+                        status = f" → {r['status']}" if r["status"] else ""
+                        st.write(f"{ikon} **{r['case']}** — forventet: {r['forventet']}, faktisk: {r['faktisk']}{status}")
+                        with st.expander(f"Se robusthedscase {nr}", expanded=not r["bestaaet"]):
+                            st.write("**Undersøger**")
+                            st.text(r["output"])
+                            if r["afgraensning_output"]:
+                                st.write("**Afgrænser**")
+                                st.text(r["afgraensning_output"])
+                except Exception:
+                    st.error("Robusthedstesten kunne ikke gennemføres. Prøv igen om lidt.")
 
     st.subheader("Noget du kan genkende?")
     st.write("Vælg den situation, der passer bedst på det, du oplever lige nu.")
