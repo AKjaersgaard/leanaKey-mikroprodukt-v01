@@ -389,6 +389,96 @@ VIDERE: <kort begrundelse>
 
 
 
+def vurder_produktport(afgraensning):
+    prompt = f"""
+Du er Produktporten i leanAKey. Du kommer EFTER Afgrænseren.
+Din opgave er ikke at bygge eller sælge et produkt. Du skal beskytte kunden mod et forkert køb.
+
+Vælg præcis én retning:
+MIKROPRODUKT = ét lille, klart afgrænset procesproblem kan realistisk undersøges med ét enkelt
+værktøj, og kunden kender ikke allerede det svar, værktøjet ville vise.
+GRATIS = der mangler én enkel observation/oplysning før et produkt kan vurderes, eller kunden
+kan komme videre med en kort gratis instruktion. Der må ikke sælges endnu.
+MØDE = flere forbundne problemer, afhængigheder eller kompleksitet gør sagen uegnet til ét
+mikroprodukt. Kunden bør tilbydes et gratis, uforpligtende møde med Annette.
+STOP = sagen er uden for LEAN/procesforbedring, eller der er ikke et reelt forbedringsproblem.
+
+Hårde regler:
+- Et AFGRÆNSET problem er IKKE automatisk et MIKROPRODUKT.
+- 49 kr. må kun være ét lille problem + ét enkelt værktøj + kort vejledning.
+- Hvis kunden allerede ved, hvad et oplagt registrerings-/måleværktøj vil vise, vælg ikke MIKROPRODUKT.
+- Hvis der mangler en enkel konkret observation, vælg GRATIS frem for at gætte.
+- FLERE_FORBUNDNE skal normalt blive MØDE; pres ikke kompleksitet ned i et produkt.
+- Startboksen "Har jeg skjult potentiale?" må aldrig ende direkte i MIKROPRODUKT. Brug GRATIS,
+  MØDE eller STOP. Et eventuelt konkret lille problem må undersøges separat senere.
+- Opfind ikke fakta, årsager, økonomisk gevinst eller forbedringer.
+- Foreslå endnu ikke hvilket værktøj der skal bruges.
+
+Svar KUN:
+RETNING: <MIKROPRODUKT, GRATIS, MØDE eller STOP>
+BEGRUNDELSE: <kort, konkret begrundelse baseret på sagen>
+
+Kundens startboks:\n{st.session_state.valgt_problem}\n\nAfgrænserens output:\n{afgraensning}
+"""
+    response = client.responses.create(model="gpt-5.6-luna", input=prompt)
+    tekst = response.output_text.strip()
+    retning = "stop"
+    for linje in tekst.splitlines():
+        if linje.upper().startswith("RETNING:"):
+            vaerdi = linje.split(":", 1)[1].strip().upper()
+            mapping = {"MIKROPRODUKT":"mikroprodukt","GRATIS":"gratis","MØDE":"moede","MODE":"moede","STOP":"stop"}
+            retning = mapping.get(vaerdi, "stop")
+            break
+    return retning, tekst
+
+PRODUTPORT_CASES = [
+ {"navn":"Lille konkret materialemangel","forventet":"mikroprodukt","afgraensning":"""STATUS: AFGRÆNSET
+PROBLEM: Malerhold opdager gentagne gange først ved pakning, at standardmaterialer mangler, så arbejdet hos kunden ikke kan starte.
+FAKTA: Maling, grunder eller tapet mangler 2-3 gange om måneden og opdages ved pakning.
+HYPOTESE: Ingen nødvendig hypotese.
+UKENDT: Årsagen er ikke dokumenteret.
+NÆSTE_TRIN: KLAR TIL NÆSTE VURDERING"""},
+ {"navn":"Observation mangler før køb","forventet":"gratis","afgraensning":"""STATUS: IKKE_AFGRÆNSET
+PROBLEM: Ikke afgrænset.
+FAKTA: Kunden leder efter dokumentversioner og retter nogle gange bagefter.
+HYPOTESE: Ingen nødvendig hypotese.
+UKENDT: Kunden ved ikke hvor ofte det sker, og det er aldrig observeret.
+NÆSTE_TRIN: OBSERVATION MANGLER"""},
+ {"navn":"Flere forbundne processer","forventet":"moede","afgraensning":"""STATUS: FLERE_FORBUNDNE
+PROBLEM: Materialemangel, planændringer, ventetid i produktionen og ophobning ved kvalitet optræder på tværs af flere funktioner.
+FAKTA: Indkøb, planlægning, produktion og kvalitet rammes gentagne gange.
+HYPOTESE: Ingen nødvendig hypotese.
+UKENDT: Ét enkelt mikroproblem er ikke afgrænset.
+NÆSTE_TRIN: KLAR TIL NÆSTE VURDERING"""},
+ {"navn":"Allerede kendt svar","forventet":"gratis","afgraensning":"""STATUS: AFGRÆNSET
+PROBLEM: Der bruges ekstra tid på at hente linned under næsten hver rengøring.
+FAKTA: Kunden har allerede registreret det i to uger og ved, at turene til hovedhuset står for hovedparten af den ekstra tid.
+HYPOTESE: Ingen nødvendig hypotese.
+UKENDT: Ingen afgørende ukendt observation.
+NÆSTE_TRIN: KLAR TIL NÆSTE VURDERING"""},
+ {"navn":"Skjult potentiale må ikke sælges direkte","forventet":"gratis","afgraensning":"""STATUS: AFGRÆNSET
+PROBLEM: Kunden vil undersøge om der er uudnyttet tid mellem aftaler.
+FAKTA: Kunden har ikke målt eller observeret tiden mellem aftaler.
+HYPOTESE: Der kan være uudnyttet potentiale, men det er ikke dokumenteret.
+UKENDT: Om der faktisk findes et konkret forbedringsproblem.
+NÆSTE_TRIN: OBSERVATION MANGLER""","skjult_potentiale":true}
+]
+
+def koer_produktport_test():
+    resultater = []
+    api_kald = 0
+    gammel_boks = st.session_state.valgt_problem
+    try:
+        for case in PRODUTPORT_CASES:
+            st.session_state.valgt_problem = "Har jeg skjult potentiale?" if case.get("skjult_potentiale") else "Det burde kunne gøres lettere…"
+            retning, output = vurder_produktport(case["afgraensning"])
+            api_kald += 1
+            resultater.append({"case":case["navn"],"forventet":case["forventet"],"faktisk":retning,"bestaaet":retning == case["forventet"],"output":output})
+    finally:
+        st.session_state.valgt_problem = gammel_boks
+    return resultater, api_kald
+
+
 # TESTLAB – faste grænsecases til beslutningsmodellen.
 TESTCASES = [
  {"navn":"B&B – ingen vinterefterspørgsel","boks":"Jeg har noget, jeg ikke får brugt/solgt…","virksomhed":"bed & breakfast","forventet":"udenfor","samtale":[("Hvad bliver ikke solgt?","Tre lejligheder står ofte tomme om vinteren."),("Er de bookbare?","Ja, hele året."),("Hvad gør I for at finde vinterkunder?","Ingenting. Sommerfirmaet arbejder ikke her om vinteren.")]},
@@ -594,6 +684,23 @@ if st.session_state.valgt_problem is None:
                                 st.text(r["afgraensning_output"])
                 except Exception:
                     st.error("Robusthedstesten kunne ikke gennemføres. Prøv igen om lidt.")
+
+        st.divider()
+        st.caption("Testniveau 5: Produktporten. Tester om et afgrænset problem skal blive mikroprodukt, gratis hjælp, møde eller stop.")
+        if st.button("Kør Produktport-test (5 cases)", key="koer_produktport_test"):
+            with st.spinner("Tester om porten kan lade være med at sælge, når den ikke bør…"):
+                try:
+                    portresultater, api_kald = koer_produktport_test()
+                    bestaaet = sum(1 for r in portresultater if r["bestaaet"])
+                    st.write(f"**Produktport: {bestaaet}/{len(portresultater)} bestået**")
+                    st.caption(f"API-kald i denne kørsel: {api_kald}. Ét kald pr. case.")
+                    for nr, r in enumerate(portresultater, start=1):
+                        ikon = "✅" if r["bestaaet"] else "❌"
+                        st.write(f"{ikon} **{r['case']}** — forventet: {r['forventet']}, faktisk: {r['faktisk']}")
+                        with st.expander(f"Se Produktport-case {nr}", expanded=not r["bestaaet"]):
+                            st.text(r["output"])
+                except Exception:
+                    st.error("Produktport-testen kunne ikke gennemføres. Prøv igen om lidt.")
 
     st.subheader("Noget du kan genkende?")
     st.write("Vælg den situation, der passer bedst på det, du oplever lige nu.")
