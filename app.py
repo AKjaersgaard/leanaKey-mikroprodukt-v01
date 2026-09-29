@@ -60,7 +60,7 @@ def foerste_spoergsmaal(problem, virksomhed):
         )
 
 
-def lav_naeste_spoergsmaal():
+def vurder_naeste_skridt():
     historik = "\n\n".join(
         f"Spørgsmål: {punkt['spoergsmaal']}\nSvar: {punkt['svar']}"
         for punkt in st.session_state.samtale
@@ -69,19 +69,33 @@ def lav_naeste_spoergsmaal():
     prompt = f"""
 Du er Undersøgeren i leanAKey.
 
-Din opgave er kun at stille ét næste spørgsmål, som reducerer usikkerheden
-og hjælper med at forstå kundens konkrete situation bedre.
+Efter hvert kundesvar skal du vælge præcis én af to handlinger:
 
-Du må ikke:
-- diagnosticere problemet
-- foreslå en løsning
-- foreslå et værktøj eller produkt
-- antage en årsag
-- stille flere spørgsmål på én gang
-- stille et spørgsmål, kunden allerede har besvaret
+SPØRG: hvis kunden sandsynligvis selv kan svare på ét kort næste spørgsmål,
+som reducerer usikkerheden.
 
-Brug kundens egne oplysninger. Stil ét kort og naturligt spørgsmål på dansk.
-Svar kun med selve spørgsmålet.
+OBSERVÉR: hvis den vigtigste manglende oplysning ikke bør gættes frem,
+men kræver at kunden observerer, tæller eller måler noget i det virkelige arbejde.
+
+Regler:
+- diagnosticér ikke problemet
+- foreslå ikke en løsning, et værktøj eller et produkt
+- antag ikke en årsag
+- stil højst ét spørgsmål
+- gentag ikke noget kunden allerede har besvaret
+- pres ikke kunden til et præcist tal, hvis kunden tydeligt ikke ved det
+- brug kundens egne oplysninger
+- hvis du vælger OBSERVÉR, beskriv kun kort hvad der mangler at blive observeret;
+  giv ikke en metode, skabelon eller løsning
+
+Hold internt styr på:
+FAKTA = oplysninger kunden faktisk har givet
+HYPOTESE = mulige forklaringer, som endnu ikke er dokumenteret
+UKENDT = vigtig information vi endnu ikke har
+
+Svar KUN i ét af disse formater:
+SPØRG: <ét kort naturligt spørgsmål på dansk>
+OBSERVÉR: <én kort sætning om hvad der mangler at blive observeret>
 
 Kunden valgte:
 {st.session_state.valgt_problem}
@@ -97,7 +111,16 @@ Samtalen indtil nu:
         model="gpt-5.6-luna",
         input=prompt
     )
-    return response.output_text.strip()
+    tekst = response.output_text.strip()
+
+    if tekst.upper().startswith("OBSERVÉR:") or tekst.upper().startswith("OBSERVER:"):
+        return "observer", tekst.split(":", 1)[1].strip()
+
+    if tekst.upper().startswith("SPØRG:") or tekst.upper().startswith("SPORG:"):
+        return "spoerg", tekst.split(":", 1)[1].strip()
+
+    # Sikker fallback: behandl et uventet svar som ét næste spørgsmål.
+    return "spoerg", tekst
 
 
 # SKÆRM 1 – vælg situation
@@ -152,18 +175,24 @@ elif st.session_state.virksomhed is None:
 else:
     st.subheader("Lad os se lidt nærmere på det")
 
-    # Vis tidligere spørgsmål og svar diskret
     for nummer, punkt in enumerate(st.session_state.samtale, start=1):
         with st.expander(f"Tidligere svar {nummer}", expanded=False):
             st.write(f"**Spørgsmål:** {punkt['spoergsmaal']}")
             st.write(f"**Dit svar:** {punkt['svar']}")
 
-    # V0.6: test op til 6 spørgsmål. Ingen diagnose eller salgsbeslutning endnu.
-    if len(st.session_state.samtale) >= 6:
+    if st.session_state.observation_mangler:
+        st.info(
+            "Her giver det mere mening at undersøge noget i det virkelige arbejde "
+            "end at gætte videre med flere spørgsmål."
+        )
+        st.write(f"**Det vi mangler at vide:** {st.session_state.observation_mangler}")
+
+    elif len(st.session_state.samtale) >= 6:
         st.info(
             "Testgrænsen på 6 spørgsmål er nået. "
-            "V0.6 stopper her uden at konkludere eller foreslå en løsning."
+            "V0.7 stopper her uden at konkludere eller foreslå en løsning."
         )
+
     else:
         st.write(st.session_state.aktuelt_spoergsmaal)
 
@@ -184,7 +213,12 @@ else:
 
                 if len(st.session_state.samtale) < 6:
                     try:
-                        st.session_state.aktuelt_spoergsmaal = lav_naeste_spoergsmaal()
+                        handling, tekst = vurder_naeste_skridt()
+                        if handling == "observer":
+                            st.session_state.observation_mangler = tekst
+                            st.session_state.aktuelt_spoergsmaal = None
+                        else:
+                            st.session_state.aktuelt_spoergsmaal = tekst
                     except Exception:
                         st.error(
                             "Der opstod en fejl ved forbindelsen til AI-tjenesten. "
@@ -200,4 +234,5 @@ else:
         st.session_state.virksomhed = None
         st.session_state.samtale = []
         st.session_state.aktuelt_spoergsmaal = None
+        st.session_state.observation_mangler = None
         st.rerun()
