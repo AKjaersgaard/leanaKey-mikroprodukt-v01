@@ -173,6 +173,15 @@ LEAN-VURDERING AF ARBEJDET:
   skal dække. Sammenlign dette behov med hele samtalen. Hvis behovet allerede er helt eller
   væsentligt besvaret, må du ikke spørge igen med en ny formulering.
 - Led efter den mindste relevante forbedringsmulighed, ikke en fuld kortlægning af virksomheden.
+- NØDVENDIGT ARBEJDE ER EN SÆRLIG GRÆNSE: Hvis aktiviteten er nødvendig pga. lovkrav, sikkerhed,
+  kvalitet, fødevaresikkerhed eller tilsvarende binding, er "det tager lang tid" alene IKKE et
+  dokumenteret forbedringsproblem. Før KLAR skal der være mindst ét kundedokumenteret tegn på
+  procespåvirkning omkring aktiviteten, fx ventetid, forsinkelse, afbrydelse, dobbeltarbejde,
+  gentagelse/omarbejde eller anden konkret påvirkning. Antag aldrig at en sådan påvirkning findes.
+  Hvis den mangler, vælg SPØRG med ét neutralt spørgsmål om hvad tidsforbruget konkret betyder for
+  arbejdet før/under/efter aktiviteten. Selve det nødvendige krav må ikke behandles som spild eller
+  foreslås fjernet. Denne regel gælder generelt og har forrang for minimumsreglen
+  SITUATION + KONKRET FORHOLD + BETYDNING ELLER GENTAGELSE.
 - STOP FØR ÅRSAGSKORTLÆGNING: Når et gentaget konkret tab/problem og dets betydning allerede er
   dokumenteret, må du ikke spørge hvordan virksomheden beslutter, planlægger eller styrer det blot
   for at lede efter en mulig årsag. Det hører til senere analyse. Vælg KLAR, medmindre svaret på et
