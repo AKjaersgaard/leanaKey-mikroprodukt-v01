@@ -86,10 +86,11 @@ som reducerer usikkerheden.
 OBSERVÉR: hvis den vigtigste manglende oplysning ikke bør gættes frem,
 men kræver at kunden observerer, tæller eller måler noget i det virkelige arbejde.
 
-KLAR: hvis samtalen allerede indeholder tilstrækkelig konkret information til,
-at Undersøgeren ikke behøver stille flere spørgsmål. KLAR betyder kun, at
-undersøgelsen kan sendes videre til næste fase. Det er ikke en diagnose,
-løsning eller salgsbeslutning.
+KLAR: hvis samtalen indeholder nok konkrete oplysninger til, at Afgrænseren
+kan foretage en reel vurdering. Du behøver IKKE forstå alle detaljer først.
+Stop hellere og aflever sagen end at fortsætte med spørgsmål, der kun gør
+allerede kendte forhold mere præcise. KLAR er ikke en diagnose, løsning eller
+salgsbeslutning.
 
 Regler:
 - diagnosticér ikke problemet
@@ -98,6 +99,9 @@ Regler:
 - stil højst ét spørgsmål
 - gentag ikke noget kunden allerede har besvaret
 - pres ikke kunden til et præcist tal, hvis kunden tydeligt ikke ved det
+- spørg ikke videre blot for at få hyppighed, minutter eller ekstra detaljer,
+  hvis der allerede er et konkret tilbagevendende forhold, som Afgrænseren kan vurdere
+- Undersøgerens opgave er at indsamle tilstrækkeligt grundlag, ikke at færdiganalysere sagen
 - brug kundens egne oplysninger
 - hvis du vælger OBSERVÉR, beskriv kun kort hvad der mangler at blive observeret;
   giv ikke en metode, skabelon eller løsning
@@ -150,8 +154,9 @@ def lav_afgraensning():
     prompt = f"""
 Du er Afgrænseren i leanAKey.
 
-Undersøgeren har afsluttet sin samtale. Din opgave er IKKE at stille flere
-spørgsmål og IKKE at foreslå en løsning, et værktøj, et produkt eller et køb.
+Undersøgeren har afleveret sagen. Den kan være afleveret som KLAR eller fordi
+der mangler en observation i det virkelige arbejde. Din opgave er IKKE at stille
+flere spørgsmål og IKKE at foreslå en løsning, et værktøj, et produkt eller et køb.
 
 Du skal alene strukturere grundlaget og vurdere, om der kan afgrænses ét lille,
 konkret problem på baggrund af kundens egne oplysninger.
@@ -187,8 +192,11 @@ Kunden valgte:
 Virksomheden arbejder med:
 {st.session_state.virksomhed}
 
-Undersøgerens afsluttende grundlag:
+Undersøgerens KLAR-grundlag:
 {st.session_state.undersoegelse_klar}
+
+Undersøgerens manglende observation:
+{st.session_state.observation_mangler}
 
 Samtalen:
 {historik}
@@ -220,6 +228,9 @@ if st.session_state.valgt_problem is None:
             st.session_state.valgt_problem = problem
             st.session_state.samtale = []
             st.session_state.aktuelt_spoergsmaal = None
+            st.session_state.observation_mangler = None
+            st.session_state.undersoegelse_klar = None
+            st.session_state.afgraensning = None
             st.rerun()
 
 
@@ -265,6 +276,22 @@ else:
         )
         st.write(f"**Det vi mangler at vide:** {st.session_state.observation_mangler}")
 
+        if st.session_state.afgraensning is None:
+            if st.button("Send til Afgrænseren", use_container_width=True):
+                try:
+                    st.session_state.afgraensning = lav_afgraensning()
+                    st.rerun()
+                except Exception:
+                    st.error(
+                        "Der opstod en fejl ved forbindelsen til AI-tjenesten. "
+                        "Prøv igen om lidt."
+                    )
+                    st.stop()
+        else:
+            st.divider()
+            st.subheader("Afgrænserens vurdering")
+            st.text(st.session_state.afgraensning)
+
     elif st.session_state.undersoegelse_klar:
         st.success("Undersøgeren vurderer, at der nu er nok konkret information til næste fase.")
         st.write(f"**Afdækket grundlag:** {st.session_state.undersoegelse_klar}")
@@ -288,8 +315,24 @@ else:
     elif len(st.session_state.samtale) >= 10:
         st.info(
             "Sikkerhedsgrænsen på 10 spørgsmål er nået. "
-            "V0.8 stopper her uden at diagnosticere, foreslå en løsning eller træffe en salgsbeslutning."
+            "Sagen kan nu sendes videre til Afgrænseren uden at Undersøgeren konkluderer."
         )
+
+        if st.session_state.afgraensning is None:
+            if st.button("Send til Afgrænseren", use_container_width=True):
+                try:
+                    st.session_state.afgraensning = lav_afgraensning()
+                    st.rerun()
+                except Exception:
+                    st.error(
+                        "Der opstod en fejl ved forbindelsen til AI-tjenesten. "
+                        "Prøv igen om lidt."
+                    )
+                    st.stop()
+        else:
+            st.divider()
+            st.subheader("Afgrænserens vurdering")
+            st.text(st.session_state.afgraensning)
 
     else:
         st.write(st.session_state.aktuelt_spoergsmaal)
