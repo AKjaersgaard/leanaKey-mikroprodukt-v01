@@ -28,6 +28,9 @@ if "observation_mangler" not in st.session_state:
 if "undersoegelse_klar" not in st.session_state:
     st.session_state.undersoegelse_klar = None
 
+if "afgraensning" not in st.session_state:
+    st.session_state.afgraensning = None
+
 st.title("leanAKey")
 
 
@@ -138,6 +141,66 @@ Samtalen indtil nu:
     return "spoerg", tekst
 
 
+def lav_afgraensning():
+    historik = "\n\n".join(
+        f"Spørgsmål: {punkt['spoergsmaal']}\nSvar: {punkt['svar']}"
+        for punkt in st.session_state.samtale
+    )
+
+    prompt = f"""
+Du er Afgrænseren i leanAKey.
+
+Undersøgeren har afsluttet sin samtale. Din opgave er IKKE at stille flere
+spørgsmål og IKKE at foreslå en løsning, et værktøj, et produkt eller et køb.
+
+Du skal alene strukturere grundlaget og vurdere, om der kan afgrænses ét lille,
+konkret problem på baggrund af kundens egne oplysninger.
+
+Vigtige regler:
+- Brug kun oplysninger fra samtalen.
+- Gør ikke en kundes usikre skøn mere præcise, end kunden selv har gjort.
+- Skeln tydeligt mellem FAKTA, HYPOTESE og UKENDT.
+- En hypotese må aldrig præsenteres som et faktum.
+- Hvis flere problemer hænger sammen, eller grundlaget er for uklart, må du
+  ikke presse sagen ned i ét kunstigt problem.
+- Du må ikke diagnosticere en årsag.
+- Du må ikke foreslå LEAN-værktøjer, AI, skemaer, målinger eller andre løsninger.
+- Du må ikke træffe en salgsbeslutning.
+- Kundens valgte startboks er kun indgangen til samtalen, ikke konklusionen.
+
+Vælg præcis én status:
+AFGRÆNSET = der kan beskrives ét lille konkret problem uden at antage årsagen.
+IKKE_AFGRÆNSET = der er endnu ikke grundlag for ét lille konkret problem.
+FLERE_FORBUNDNE = samtalen peger på flere sammenhængende problemer, som ikke
+bør presses sammen til ét mikroproblem.
+
+Svar KUN i dette format:
+STATUS: <AFGRÆNSET, IKKE_AFGRÆNSET eller FLERE_FORBUNDNE>
+PROBLEM: <kort neutral problembeskrivelse eller "Ikke afgrænset">
+FAKTA: <kort opsummering af det kunden faktisk har oplyst>
+HYPOTESE: <mulig forklaring som ikke er dokumenteret, eller "Ingen nødvendig hypotese">
+UKENDT: <vigtig information der stadig mangler, eller "Intet afgørende for afgrænsningen">
+
+Kunden valgte:
+{st.session_state.valgt_problem}
+
+Virksomheden arbejder med:
+{st.session_state.virksomhed}
+
+Undersøgerens afsluttende grundlag:
+{st.session_state.undersoegelse_klar}
+
+Samtalen:
+{historik}
+"""
+
+    response = client.responses.create(
+        model="gpt-5.6-luna",
+        input=prompt
+    )
+    return response.output_text.strip()
+
+
 # SKÆRM 1 – vælg situation
 if st.session_state.valgt_problem is None:
     st.subheader("Noget du kan genkende?")
@@ -206,6 +269,22 @@ else:
         st.success("Undersøgeren vurderer, at der nu er nok konkret information til næste fase.")
         st.write(f"**Afdækket grundlag:** {st.session_state.undersoegelse_klar}")
 
+        if st.session_state.afgraensning is None:
+            if st.button("Send til Afgrænseren", use_container_width=True):
+                try:
+                    st.session_state.afgraensning = lav_afgraensning()
+                    st.rerun()
+                except Exception:
+                    st.error(
+                        "Der opstod en fejl ved forbindelsen til AI-tjenesten. "
+                        "Prøv igen om lidt."
+                    )
+                    st.stop()
+        else:
+            st.divider()
+            st.subheader("Afgrænserens vurdering")
+            st.text(st.session_state.afgraensning)
+
     elif len(st.session_state.samtale) >= 10:
         st.info(
             "Sikkerhedsgrænsen på 10 spørgsmål er nået. "
@@ -258,4 +337,5 @@ else:
         st.session_state.aktuelt_spoergsmaal = None
         st.session_state.observation_mangler = None
         st.session_state.undersoegelse_klar = None
+        st.session_state.afgraensning = None
         st.rerun()
