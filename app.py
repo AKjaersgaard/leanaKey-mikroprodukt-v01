@@ -472,6 +472,39 @@ else:
             else:
                 st.warning("Skriv lidt om det, du oplever, før du fortsætter.")
 
+    # TESTHJÆLP – samler hele forløbet, så det let kan kopieres til gennemgang.
+    # Fjernes eller skjules i den færdige kundeversion.
+    if st.session_state.samtale:
+        st.divider()
+        with st.expander("Testlog – kopiér hele forløbet", expanded=False):
+            loglinjer = [
+                f"VALGT BOKS: {st.session_state.valgt_problem}",
+                f"VIRKSOMHED: {st.session_state.virksomhed}",
+                ""
+            ]
+            for nummer, punkt in enumerate(st.session_state.samtale, start=1):
+                loglinjer.extend([
+                    f"SPØRGSMÅL {nummer}: {punkt['spoergsmaal']}",
+                    f"SVAR {nummer}: {punkt['svar']}",
+                    ""
+                ])
+            if st.session_state.observation_mangler:
+                loglinjer.extend([
+                    f"UNDERSØGER: OBSERVÉR: {st.session_state.observation_mangler}",
+                    ""
+                ])
+            if st.session_state.undersoegelse_klar:
+                loglinjer.extend([
+                    f"UNDERSØGER: KLAR: {st.session_state.undersoegelse_klar}",
+                    ""
+                ])
+            if st.session_state.afgraensning:
+                loglinjer.extend([
+                    "AFGRÆNSERENS VURDERING:",
+                    st.session_state.afgraensning
+                ])
+            st.code("\n".join(loglinjer), language=None)
+
     if st.button("← Tilbage", key="tilbage_undersoegelse"):
         st.session_state.virksomhed = None
         st.session_state.samtale = []
