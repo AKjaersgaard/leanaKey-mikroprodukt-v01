@@ -202,7 +202,7 @@ STATUS: <AFGRÆNSET, IKKE_AFGRÆNSET eller FLERE_FORBUNDNE>
 PROBLEM: <kort neutral problembeskrivelse eller "Ikke afgrænset">
 FAKTA: <kort opsummering af det kunden faktisk har oplyst>
 HYPOTESE: <mulig forklaring som ikke er dokumenteret, eller "Ingen nødvendig hypotese">
-UKENDT: <vigtig information der stadig mangler, eller "Intet afgørende for afgrænsningen">
+UKENDT: <vigtig information der stadig mangler, eller "Intet afgørende for afgrænsningen">\nNÆSTE_TRIN: <"OBSERVATION MANGLER" hvis sagen kræver observation før produktvurdering, ellers "KLAR TIL NÆSTE VURDERING">
 
 Kunden valgte:
 {st.session_state.valgt_problem}
