@@ -380,14 +380,14 @@ TESTCASES = [
  {"navn":"Nødvendig kvalitetskontrol","boks":"Jeg mangler tid…","virksomhed":"fødevareproduktion","forventet":"spoerg","samtale":[("Hvornår?","Ved kvalitetskontrollen. Den tager lang tid."),("Kan den undværes?","Nej, den er et krav og vigtig for fødevaresikkerheden.")]},
  {"navn":"Maler – materialemangel","boks":"Jeg mangler noget for at komme videre…","virksomhed":"malerfirma","forventet":"klar","samtale":[("Hvad mangler?","Maling, grunder eller tapet."),("Hvornår opdages det?","Når bilen pakkes før kunden."),("Betydning?","Vi kan ikke starte. Det sker 2-3 gange om måneden.")]},
  {"navn":"Webshop – marketing","boks":"Jeg har noget, jeg ikke får brugt/solgt…","virksomhed":"webshop","forventet":"udenfor","samtale":[("Hvad sælges ikke?","En ny produktserie."),("Procesproblem?","Nej, der kommer næsten ingen besøgende til produktsiderne."),("Udfordringen?","Vi ved ikke hvordan vi skal markedsføre produkterne.")]},
- {"navn":"Flere processer","boks":"Jeg mangler tid…","virksomhed":"produktion","forventet":"klar","samtale":[("Hvornår?","Leverancer forsinkes."),("Hvad sker der?","Indkøb mangler materialer, plan ændres, maskinen stopper og kvalitet får bunker."),("Én arbejdsgang?","Nej, indkøb, planlægning, produktion og kvalitet rammes hver uge.")]},
+ {"navn":"Flere processer","forventet_afgraensning":"FLERE_FORBUNDNE","boks":"Jeg mangler tid…","virksomhed":"produktion","forventet":"klar","samtale":[("Hvornår?","Leverancer forsinkes."),("Hvad sker der?","Indkøb mangler materialer, plan ændres, maskinen stopper og kvalitet får bunker."),("Én arbejdsgang?","Nej, indkøb, planlægning, produktion og kvalitet rammes hver uge.")]},
  {"navn":"Kræver observation","boks":"Jeg gør ting om nogle gange…","virksomhed":"kontor","forventet":"observer","samtale":[("Hvad gør du om?","Jeg leder efter rigtig dokumentversion og retter bagefter."),("Hvor ofte?","Det ved jeg ikke. Vi har aldrig holdt øje og jeg kan ikke vurdere det.")]},
  {"navn":"Prisfastsættelse","boks":"Har jeg skjult potentiale?","virksomhed":"fotograf","forventet":"udenfor","samtale":[("Hvor er potentialet?","Jeg tror mine priser er for lave."),("Hvad vil du have hjælp til?","At finde markedsprisen og hvad jeg bør tage.")]},
  {"navn":"Forkert boks – procesproblem","boks":"Jeg har noget, jeg ikke får brugt/solgt…","virksomhed":"cykelværksted","forventet":"klar","samtale":[("Hvad får du ikke brugt?","Min tid. Cykler venter på reservedele."),("Hvad sker der?","Jeg starter og opdager bagefter at en del mangler."),("Betydning?","Cyklen optager plads og arbejdet stopper flere gange om ugen.")]}
 ]
 
 def koer_testbatteri():
-    gemt = (st.session_state.valgt_problem, st.session_state.virksomhed, list(st.session_state.samtale))
+    gemt = (st.session_state.valgt_problem, st.session_state.virksomhed, list(st.session_state.samtale), st.session_state.undersoegelse_klar, st.session_state.observation_mangler, st.session_state.afgraensning)
     resultater = []
     try:
         for case in TESTCASES:
@@ -395,9 +395,24 @@ def koer_testbatteri():
             st.session_state.virksomhed = case["virksomhed"]
             st.session_state.samtale = [{"spoergsmaal": q, "svar": a} for q, a in case["samtale"]]
             handling, tekst = vurder_naeste_skridt()
-            resultater.append({"case":case["navn"],"forventet":case["forventet"],"faktisk":handling,"bestaaet":handling == case["forventet"],"output":tekst})
+            triage_ok = handling == case["forventet"]
+            status = None
+            forventet_status = None
+            afgraensning_output = ""
+            afgraensning_ok = True
+            if handling == "klar":
+                st.session_state.undersoegelse_klar = tekst
+                st.session_state.observation_mangler = None
+                afgraensning_output = lav_afgraensning()
+                for linje in afgraensning_output.splitlines():
+                    if linje.upper().startswith("STATUS:"):
+                        status = linje.split(":", 1)[1].strip().upper()
+                        break
+                forventet_status = case.get("forventet_afgraensning", "AFGRÆNSET")
+                afgraensning_ok = status == forventet_status
+            resultater.append({"case":case["navn"],"forventet":case["forventet"],"faktisk":handling,"forventet_status":forventet_status,"status":status,"bestaaet":triage_ok and afgraensning_ok,"output":tekst,"afgraensning_output":afgraensning_output})
     finally:
-        st.session_state.valgt_problem, st.session_state.virksomhed, st.session_state.samtale = gemt
+        st.session_state.valgt_problem, st.session_state.virksomhed, st.session_state.samtale, st.session_state.undersoegelse_klar, st.session_state.observation_mangler, st.session_state.afgraensning = gemt
     return resultater
 
 # SKÆRM 1 – vælg situation
@@ -405,7 +420,7 @@ if st.session_state.valgt_problem is None:
 
     st.divider()
     with st.expander("🧪 Testlab – beslutningsmotor", expanded=False):
-        st.caption("Midlertidigt udviklingsværktøj: 12 faste grænsecases mod samme Undersøger-logik.")
+        st.caption("Testniveau 2: 12 grænsecases gennem Undersøgeren og Afgrænseren, når sagen er KLAR.")
         if st.button("Kør automatisk testbatteri", key="koer_testbatteri"):
             with st.spinner("Tester beslutningsmotoren…"):
                 try:
