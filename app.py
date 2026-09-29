@@ -461,7 +461,7 @@ PROBLEM: Kunden vil undersøge om der er uudnyttet tid mellem aftaler.
 FAKTA: Kunden har ikke målt eller observeret tiden mellem aftaler.
 HYPOTESE: Der kan være uudnyttet potentiale, men det er ikke dokumenteret.
 UKENDT: Om der faktisk findes et konkret forbedringsproblem.
-NÆSTE_TRIN: OBSERVATION MANGLER""","skjult_potentiale":true}
+NÆSTE_TRIN: OBSERVATION MANGLER""","skjult_potentiale":True}
 ]
 
 def koer_produktport_test():
