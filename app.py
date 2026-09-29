@@ -369,8 +369,57 @@ VIDERE: <kort begrundelse>
     return "videre", tekst.split(":", 1)[1].strip() if ":" in tekst else tekst
 
 
+
+# TESTLAB – faste grænsecases til beslutningsmodellen.
+TESTCASES = [
+ {"navn":"B&B – ingen vinterefterspørgsel","boks":"Jeg har noget, jeg ikke får brugt/solgt…","virksomhed":"bed & breakfast","forventet":"udenfor","samtale":[("Hvad bliver ikke solgt?","Tre lejligheder står ofte tomme om vinteren."),("Er de bookbare?","Ja, hele året."),("Hvad gør I for at finde vinterkunder?","Ingenting. Sommerfirmaet arbejder ikke her om vinteren.")]},
+ {"navn":"B&B – rengøringsflow","boks":"Jeg mangler tid…","virksomhed":"bed & breakfast","forventet":"klar","samtale":[("Hvornår?","Når lejlighederne gøres klar."),("Hvad sker der?","Jeg går frem og tilbage til hovedhuset efter linned og rengøringsmidler."),("Gentager det sig?","Ja, næsten hver rengøring og det tager ekstra tid.")]},
+ {"navn":"VVS – manuel fakturering","boks":"Det burde kunne gøres lettere…","virksomhed":"VVS","forventet":"klar","samtale":[("Hvad er besværligt?","Fakturaer. Jeg lægger tal sammen på lommeregner og skriver dem ind i Word."),("Hvor ofte?","Omkring 25 om måneden."),("Betydning?","10-30 minutter pr. faktura, og sidste måned fandt to kunder regnefejl.")]},
+ {"navn":"Juridisk vurdering","boks":"Det burde kunne gøres lettere…","virksomhed":"lille virksomhed","forventet":"udenfor","samtale":[("Hvad er svært?","At afgøre om en konkurrenceklausul er lovlig."),("Arbejdsgangen eller vurderingen?","Selve den juridiske vurdering.")]},
+ {"navn":"Café – kassation","boks":"Jeg har noget, jeg ikke får brugt/solgt…","virksomhed":"café","forventet":"klar","samtale":[("Hvad?","Kager tilbage ved lukketid."),("Hvad sker der?","Nogle tages med hjem, resten smides ud."),("Gentaget?","Ja, næsten hver dag.")]},
+ {"navn":"Nødvendig kvalitetskontrol","boks":"Jeg mangler tid…","virksomhed":"fødevareproduktion","forventet":"spoerg","samtale":[("Hvornår?","Ved kvalitetskontrollen. Den tager lang tid."),("Kan den undværes?","Nej, den er et krav og vigtig for fødevaresikkerheden.")]},
+ {"navn":"Maler – materialemangel","boks":"Jeg mangler noget for at komme videre…","virksomhed":"malerfirma","forventet":"klar","samtale":[("Hvad mangler?","Maling, grunder eller tapet."),("Hvornår opdages det?","Når bilen pakkes før kunden."),("Betydning?","Vi kan ikke starte. Det sker 2-3 gange om måneden.")]},
+ {"navn":"Webshop – marketing","boks":"Jeg har noget, jeg ikke får brugt/solgt…","virksomhed":"webshop","forventet":"udenfor","samtale":[("Hvad sælges ikke?","En ny produktserie."),("Procesproblem?","Nej, der kommer næsten ingen besøgende til produktsiderne."),("Udfordringen?","Vi ved ikke hvordan vi skal markedsføre produkterne.")]},
+ {"navn":"Flere processer","boks":"Jeg mangler tid…","virksomhed":"produktion","forventet":"klar","samtale":[("Hvornår?","Leverancer forsinkes."),("Hvad sker der?","Indkøb mangler materialer, plan ændres, maskinen stopper og kvalitet får bunker."),("Én arbejdsgang?","Nej, indkøb, planlægning, produktion og kvalitet rammes hver uge.")]},
+ {"navn":"Kræver observation","boks":"Jeg gør ting om nogle gange…","virksomhed":"kontor","forventet":"observer","samtale":[("Hvad gør du om?","Jeg leder efter rigtig dokumentversion og retter bagefter."),("Hvor ofte?","Det ved jeg ikke. Vi har aldrig holdt øje og jeg kan ikke vurdere det.")]},
+ {"navn":"Prisfastsættelse","boks":"Har jeg skjult potentiale?","virksomhed":"fotograf","forventet":"udenfor","samtale":[("Hvor er potentialet?","Jeg tror mine priser er for lave."),("Hvad vil du have hjælp til?","At finde markedsprisen og hvad jeg bør tage.")]},
+ {"navn":"Forkert boks – procesproblem","boks":"Jeg har noget, jeg ikke får brugt/solgt…","virksomhed":"cykelværksted","forventet":"klar","samtale":[("Hvad får du ikke brugt?","Min tid. Cykler venter på reservedele."),("Hvad sker der?","Jeg starter og opdager bagefter at en del mangler."),("Betydning?","Cyklen optager plads og arbejdet stopper flere gange om ugen.")]}
+]
+
+def koer_testbatteri():
+    gemt = (st.session_state.valgt_problem, st.session_state.virksomhed, list(st.session_state.samtale))
+    resultater = []
+    try:
+        for case in TESTCASES:
+            st.session_state.valgt_problem = case["boks"]
+            st.session_state.virksomhed = case["virksomhed"]
+            st.session_state.samtale = [{"spoergsmaal": q, "svar": a} for q, a in case["samtale"]]
+            handling, tekst = vurder_naeste_skridt()
+            resultater.append({"case":case["navn"],"forventet":case["forventet"],"faktisk":handling,"bestaaet":handling == case["forventet"],"output":tekst})
+    finally:
+        st.session_state.valgt_problem, st.session_state.virksomhed, st.session_state.samtale = gemt
+    return resultater
+
 # SKÆRM 1 – vælg situation
 if st.session_state.valgt_problem is None:
+
+    st.divider()
+    with st.expander("🧪 Testlab – beslutningsmotor", expanded=False):
+        st.caption("Midlertidigt udviklingsværktøj: 12 faste grænsecases mod samme Undersøger-logik.")
+        if st.button("Kør automatisk testbatteri", key="koer_testbatteri"):
+            with st.spinner("Tester beslutningsmotoren…"):
+                try:
+                    resultater = koer_testbatteri()
+                    bestaaet = sum(1 for r in resultater if r["bestaaet"])
+                    st.write(f"**Resultat: {bestaaet}/{len(resultater)} bestået**")
+                    for r in resultater:
+                        ikon = "✅" if r["bestaaet"] else "❌"
+                        st.write(f"{ikon} **{r['case']}** — forventet: {r['forventet']}, faktisk: {r['faktisk']}")
+                        if not r["bestaaet"]:
+                            st.caption("Motorens output: " + r["output"])
+                except Exception:
+                    st.error("Testbatteriet kunne ikke gennemføres. Prøv igen om lidt.")
+
     st.subheader("Noget du kan genkende?")
     st.write("Vælg den situation, der passer bedst på det, du oplever lige nu.")
 
