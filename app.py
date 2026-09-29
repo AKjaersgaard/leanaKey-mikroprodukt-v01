@@ -437,11 +437,19 @@ if st.session_state.valgt_problem is None:
                     resultater = koer_testbatteri()
                     bestaaet = sum(1 for r in resultater if r["bestaaet"])
                     st.write(f"**Resultat: {bestaaet}/{len(resultater)} bestået**")
-                    for r in resultater:
+                    for nr, r in enumerate(resultater, start=1):
                         ikon = "✅" if r["bestaaet"] else "❌"
                         st.write(f"{ikon} **{r['case']}** — forventet: {r['forventet']}, faktisk: {r['faktisk']}")
-                        if not r["bestaaet"]:
-                            st.caption("Motorens output: " + r["output"])
+                        with st.expander(f"Se hele beslutningskæden – test {nr}", expanded=not r["bestaaet"]):
+                            st.write("**Undersøgerens beslutning**")
+                            st.text(r["output"])
+                            if r["faktisk"] == "klar":
+                                st.write("**Afgrænserens forventede status**")
+                                st.text(r["forventet_status"] or "Ikke angivet")
+                                st.write("**Afgrænserens faktiske output**")
+                                st.text(r["afgraensning_output"] or "Intet output")
+                            else:
+                                st.caption("Sagen blev ikke sendt til Afgrænseren i denne test.")
                 except Exception:
                     st.error("Testbatteriet kunne ikke gennemføres. Prøv igen om lidt.")
 
