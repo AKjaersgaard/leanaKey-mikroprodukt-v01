@@ -545,7 +545,10 @@ else:
                 if len(st.session_state.samtale) < 10:
                     try:
                         handling, tekst = vurder_naeste_skridt()
-                        if handling == "observer":
+                        if handling == "udenfor":
+                            st.session_state.udenfor_lean = tekst
+                            st.session_state.aktuelt_spoergsmaal = None
+                        elif handling == "observer":
                             st.session_state.observation_mangler = tekst
                             st.session_state.aktuelt_spoergsmaal = None
                         elif handling == "klar":
@@ -578,6 +581,11 @@ else:
                 loglinjer.extend([
                     f"SPØRGSMÅL {nummer}: {punkt['spoergsmaal']}",
                     f"SVAR {nummer}: {punkt['svar']}",
+                    ""
+                ])
+            if st.session_state.udenfor_lean:
+                loglinjer.extend([
+                    f"UNDERSØGER: UDENFOR: {st.session_state.udenfor_lean}",
                     ""
                 ])
             if st.session_state.observation_mangler:
