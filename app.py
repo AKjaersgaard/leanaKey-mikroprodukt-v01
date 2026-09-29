@@ -425,6 +425,52 @@ def koer_testbatteri():
         st.session_state.valgt_problem, st.session_state.virksomhed, st.session_state.samtale, st.session_state.undersoegelse_klar, st.session_state.observation_mangler, st.session_state.afgraensning = gemt
     return resultater
 
+def koer_stabilitetstest(gentagelser=3):
+    # Bevidst lille test: kun de grænsecases, der tidligere har vist følsomhed.
+    navne = {"Café – kassation", "Nødvendig kvalitetskontrol", "Flere processer"}
+    cases = [case for case in TESTCASES if case["navn"] in navne]
+    gemt = (st.session_state.valgt_problem, st.session_state.virksomhed, list(st.session_state.samtale), st.session_state.undersoegelse_klar, st.session_state.observation_mangler, st.session_state.afgraensning)
+    resultater = []
+    api_kald = 0
+    try:
+        for case in cases:
+            koersler = []
+            for _ in range(gentagelser):
+                st.session_state.valgt_problem = case["boks"]
+                st.session_state.virksomhed = case["virksomhed"]
+                st.session_state.samtale = [{"spoergsmaal": q, "svar": a} for q, a in case["samtale"]]
+                handling, tekst = vurder_naeste_skridt()
+                api_kald += 1
+                status = None
+                afgraensning_output = ""
+                forventet_status = None
+                korrekt = handling == case["forventet"]
+                if handling == "klar":
+                    st.session_state.undersoegelse_klar = tekst
+                    st.session_state.observation_mangler = None
+                    afgraensning_output = lav_afgraensning()
+                    api_kald += 1
+                    for linje in afgraensning_output.splitlines():
+                        if linje.upper().startswith("STATUS:"):
+                            status = linje.split(":", 1)[1].strip().upper()
+                            break
+                    forventet_status = case.get("forventet_afgraensning", "AFGRÆNSET")
+                    korrekt = korrekt and status == forventet_status
+                koersler.append({
+                    "handling": handling, "status": status, "korrekt": korrekt,
+                    "output": tekst, "afgraensning_output": afgraensning_output,
+                    "forventet_status": forventet_status
+                })
+            resultater.append({
+                "case": case["navn"], "forventet": case["forventet"],
+                "koersler": koersler,
+                "stabil": len({(k["handling"], k["status"]) for k in koersler}) == 1,
+                "alle_korrekte": all(k["korrekt"] for k in koersler)
+            })
+    finally:
+        st.session_state.valgt_problem, st.session_state.virksomhed, st.session_state.samtale, st.session_state.undersoegelse_klar, st.session_state.observation_mangler, st.session_state.afgraensning = gemt
+    return resultater, api_kald
+
 # SKÆRM 1 – vælg situation
 if st.session_state.valgt_problem is None:
 
@@ -452,6 +498,32 @@ if st.session_state.valgt_problem is None:
                                 st.caption("Sagen blev ikke sendt til Afgrænseren i denne test.")
                 except Exception:
                     st.error("Testbatteriet kunne ikke gennemføres. Prøv igen om lidt.")
+
+        st.divider()
+        st.caption("Testniveau 3: stabilitet. Tre følsomme grænsecases køres 3 gange hver. Det holder API-forbruget nede.")
+        if st.button("Kør stabilitetstest (3 × 3)", key="koer_stabilitetstest"):
+            with st.spinner("Kører 9 gentagelser og sammenligner beslutningerne…"):
+                try:
+                    stabilitet, api_kald = koer_stabilitetstest(3)
+                    helt_stabile = sum(1 for r in stabilitet if r["stabil"] and r["alle_korrekte"])
+                    st.write(f"**Stabilitet: {helt_stabile}/{len(stabilitet)} cases stabile og korrekte**")
+                    st.caption(f"API-kald i denne kørsel: {api_kald}. KLAR-svar bruger et ekstra kald til Afgrænseren.")
+                    for r in stabilitet:
+                        ikon = "✅" if r["stabil"] and r["alle_korrekte"] else "⚠️"
+                        beslutninger = ", ".join(
+                            f"{k['handling']}" + (f" → {k['status']}" if k["status"] else "")
+                            for k in r["koersler"]
+                        )
+                        st.write(f"{ikon} **{r['case']}** — {beslutninger}")
+                        with st.expander(f"Se de 3 kørsler – {r['case']}", expanded=not (r["stabil"] and r["alle_korrekte"])):
+                            for nr, k in enumerate(r["koersler"], start=1):
+                                st.write(f"**Kørsel {nr}: {k['handling']}**" + (f" → {k['status']}" if k["status"] else ""))
+                                st.text(k["output"])
+                                if k["afgraensning_output"]:
+                                    st.write("Afgrænser:")
+                                    st.text(k["afgraensning_output"])
+                except Exception:
+                    st.error("Stabilitetstesten kunne ikke gennemføres. Prøv igen om lidt.")
 
     st.subheader("Noget du kan genkende?")
     st.write("Vælg den situation, der passer bedst på det, du oplever lige nu.")
