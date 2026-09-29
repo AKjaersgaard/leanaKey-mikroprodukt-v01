@@ -31,6 +31,9 @@ if "undersoegelse_klar" not in st.session_state:
 if "afgraensning" not in st.session_state:
     st.session_state.afgraensning = None
 
+if "afgraenser_feedback" not in st.session_state:
+    st.session_state.afgraenser_feedback = None
+
 st.title("leanAKey")
 
 
@@ -224,6 +227,40 @@ Samtalen:
     return response.output_text.strip()
 
 
+def vurder_afgraenser_feedback():
+    prompt = f"""
+Du er returgaten mellem Afgrænseren og Undersøgeren i leanAKey.
+Afgrænserens vurdering er:
+{st.session_state.afgraensning}
+
+Vurdér om der mangler vigtig konkret viden, før sagen senere kan vurderes til et eventuelt mikroprodukt.
+Et afgrænset problem er ikke automatisk klar til et produkt.
+
+Regler:
+- Vælg kun noget kunden sandsynligvis selv kan svare på uden at gætte.
+- Spørg ikke kunden om en ukendt årsag, som om kunden kender den.
+- Omfang, mønster, variation eller hvad kunden allerede ved/registrerer kan være relevant.
+- Stil kun ét spørgsmål ad gangen.
+- Foreslå ikke løsning, skema, værktøj eller køb.
+- Hvis det vigtigste manglende kræver observation eller måling i virkeligheden, vælg OBSERVÉR.
+- Hvis intet afgørende mangler før næste fase, vælg VIDERE.
+
+Svar KUN:
+SPØRG: <ét kort naturligt spørgsmål>
+eller
+OBSERVÉR: <kort hvad der først må observeres>
+eller
+VIDERE: <kort begrundelse>
+"""
+    response = client.responses.create(model="gpt-5.6-luna", input=prompt)
+    tekst = response.output_text.strip()
+    if tekst.upper().startswith("SPØRG:") or tekst.upper().startswith("SPORG:"):
+        return "spoerg", tekst.split(":", 1)[1].strip()
+    if tekst.upper().startswith("OBSERVÉR:") or tekst.upper().startswith("OBSERVER:"):
+        return "observer", tekst.split(":", 1)[1].strip()
+    return "videre", tekst.split(":", 1)[1].strip() if ":" in tekst else tekst
+
+
 # SKÆRM 1 – vælg situation
 if st.session_state.valgt_problem is None:
     st.subheader("Noget du kan genkende?")
@@ -246,6 +283,7 @@ if st.session_state.valgt_problem is None:
             st.session_state.observation_mangler = None
             st.session_state.undersoegelse_klar = None
             st.session_state.afgraensning = None
+            st.session_state.afgraenser_feedback = None
             st.rerun()
 
 
@@ -326,6 +364,29 @@ else:
             st.divider()
             st.subheader("Afgrænserens vurdering")
             st.text(st.session_state.afgraensning)
+
+            if st.session_state.afgraenser_feedback is None:
+                if st.button("Kontrollér om der mangler noget", use_container_width=True):
+                    try:
+                        handling, tekst = vurder_afgraenser_feedback()
+                        if handling == "spoerg":
+                            st.session_state.aktuelt_spoergsmaal = tekst
+                            st.session_state.undersoegelse_klar = None
+                            st.session_state.afgraensning = None
+                            st.rerun()
+                        elif handling == "observer":
+                            st.session_state.observation_mangler = tekst
+                            st.session_state.undersoegelse_klar = None
+                            st.session_state.afgraensning = None
+                            st.rerun()
+                        else:
+                            st.session_state.afgraenser_feedback = tekst
+                            st.rerun()
+                    except Exception:
+                        st.error("Der opstod en fejl ved forbindelsen til AI-tjenesten. Prøv igen om lidt.")
+                        st.stop()
+            else:
+                st.info(f"Klar til næste fase: {st.session_state.afgraenser_feedback}")
 
     elif len(st.session_state.samtale) >= 10:
         st.info(
