@@ -28,6 +28,9 @@ if "observation_mangler" not in st.session_state:
 if "undersoegelse_klar" not in st.session_state:
     st.session_state.undersoegelse_klar = None
 
+if "udenfor_lean" not in st.session_state:
+    st.session_state.udenfor_lean = None
+
 if "afgraensning" not in st.session_state:
     st.session_state.afgraensning = None
 
@@ -81,13 +84,18 @@ def vurder_naeste_skridt():
     prompt = f"""
 Du er Undersøgeren i leanAKey.
 
-Efter hvert kundesvar skal du vælge præcis én af tre handlinger:
+Efter hvert kundesvar skal du først lave en intern TRIAGE og derefter vælge præcis én af fire handlinger:
 
 SPØRG: hvis kunden sandsynligvis selv kan svare på ét kort næste spørgsmål,
 som reducerer usikkerheden.
 
 OBSERVÉR: hvis den vigtigste manglende oplysning ikke bør gættes frem,
 men kræver at kunden observerer, tæller eller måler noget i det virkelige arbejde.
+
+UDENFOR: hvis kundens dokumenterede hovedproblem primært ligger uden for forbedring af
+arbejdsgange/processer, fx markedsføring/efterspørgsel, prisfastsættelse/økonomisk rådgivning,
+jura, skat eller anden specialistfaglig rådgivning. Brug ikke UDENFOR blot fordi problemet har
+en økonomisk konsekvens eller handler om salg; spørgsmålet er hvor problemets mekanisme ligger.
 
 KLAR: kun hvis samtalen indeholder et minimum af dokumenteret grundlag, så
 Afgrænseren kan foretage en reel vurdering. Før KLAR skal kundens egne svar
@@ -99,6 +107,19 @@ tilsammen dokumentere:
 Alle tre led skal komme fra kundens svar. De må ikke udledes eller opfindes.
 Du behøver ikke præcise minutter eller tal, hvis de tre led allerede er belyst.
 KLAR er ikke en diagnose, løsning eller salgsbeslutning.
+
+TRIAGE – VURDÉR DETTE FØR DU VÆLGER NÆSTE SPØRGSMÅL:
+A MINI-LEAN: Problemet ligger i en konkret arbejdsgang/proces og ser lille nok ud til at kunne afgrænses.
+B STØRRE LEAN: Problemet ligger i arbejdsgange/processer, men involverer flere sammenhængende processer,
+  afhængigheder eller kompleksitet. Indsaml kun det nødvendige grundlag til senere menneskelig vurdering.
+C UDEN FOR LEAN: Problemets primære mekanisme ligger ikke i arbejdsgangen, men fx i manglende
+  efterspørgsel/markedsføring, prisfastsættelse, finansiering, skat, jura eller specialistfaglig rådgivning.
+D FOR TIDLIGT: Der mangler én afgørende oplysning for at skelne A/B/C. Stil kun det spørgsmål.
+
+Vigtigt: Klassificér mekanismen, ikke branchen og ikke kundens valgte boks.
+En B&B kan have et LEAN-problem med rengøringsflow, men manglende vinterefterspørgsel er ikke
+i sig selv et LEAN-problem. En café kan have økonomisk tab fra kassation og stadig have et LEAN-problem,
+hvis mekanismen ligger i planlægning/processen. Brug disse som principillustrationer, ikke case-regler.
 
 LEAN-FAGLIGT KOMPAS – KUN TIL DIN INTERNE TÆNKNING:
 Du er en mini-LEAN-konsulent, ikke blot en interviewer. Brug LEAN-tænkning til at forstå
@@ -206,6 +227,7 @@ UKENDT = vigtig information vi endnu ikke har
 
 Svar KUN i ét af disse formater:
 SPØRG: <ét kort naturligt spørgsmål på dansk>
+UDENFOR: <én kort neutral sætning om hvilket fagområde hovedproblemet ser ud til at høre til>
 OBSERVÉR: <én kort sætning om hvad der mangler at blive observeret>
 KLAR: <én kort neutral sætning om hvilket konkret grundlag der nu er afdækket>
 
@@ -227,6 +249,9 @@ Samtalen indtil nu:
 
     if tekst.upper().startswith("OBSERVÉR:") or tekst.upper().startswith("OBSERVER:"):
         return "observer", tekst.split(":", 1)[1].strip()
+
+    if tekst.upper().startswith("UDENFOR:"):
+        return "udenfor", tekst.split(":", 1)[1].strip()
 
     if tekst.upper().startswith("KLAR:"):
         return "klar", tekst.split(":", 1)[1].strip()
@@ -367,6 +392,7 @@ if st.session_state.valgt_problem is None:
             st.session_state.undersoegelse_klar = None
             st.session_state.afgraensning = None
             st.session_state.afgraenser_feedback = None
+            st.session_state.udenfor_lean = None
             st.rerun()
 
 
@@ -405,7 +431,12 @@ else:
             st.write(f"**Spørgsmål:** {punkt['spoergsmaal']}")
             st.write(f"**Dit svar:** {punkt['svar']}")
 
-    if st.session_state.observation_mangler:
+    if st.session_state.udenfor_lean:
+        st.info("Det her ser ikke ud til primært at være en opgave om at forbedre en arbejdsgang eller proces.")
+        st.write(f"**Vurdering:** {st.session_state.udenfor_lean}")
+        st.write("leanAKey stopper derfor her i stedet for at presse problemet ind i en LEAN-løsning.")
+
+    elif st.session_state.observation_mangler:
         st.info(
             "Her giver det mere mening at undersøge noget i det virkelige arbejde "
             "end at gætte videre med flere spørgsmål."
