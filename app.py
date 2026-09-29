@@ -113,6 +113,15 @@ Regler:
   at afdække netop det manglende led, medmindre det kræver observation
 - Undersøgerens opgave er at indsamle tilstrækkeligt grundlag, ikke at færdiganalysere sagen
 - brug kundens egne oplysninger
+- STOP VED MÆTNING: Når problemet er konkret dokumenteret, omfang eller gentagelse er belyst,
+  konsekvensen er belyst, og den sidste afgørende uklarhed for selve problemafgrænsningen er afklaret,
+  skal du vælge KLAR. Fortsæt ikke blot fordi et ekstra spørgsmål kunne være interessant.
+- Efter mætning må du ikke lede efter mønstre på tværs af kundetyper, bilagstyper, produkter,
+  tidspunkter eller andre mulige forklaringer. Det hører til en senere analysefase.
+- Spørg kun videre, hvis svaret realistisk kan ændre, om der findes ét afgrænset problem,
+  eller hvis en afgørende faktuel uklarhed stadig forhindrer afgrænsningen.
+- Et spørgsmål er ikke nødvendigt alene fordi svaret kunne gøre sagen mere detaljeret.
+- Sikkerhedsgrænsen på 10 spørgsmål er et nødstop, aldrig et mål.
 - hvis du vælger OBSERVÉR, beskriv kun kort hvad der mangler at blive observeret;
   giv ikke en metode, skabelon eller løsning
 
