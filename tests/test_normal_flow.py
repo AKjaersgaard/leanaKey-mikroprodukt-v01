@@ -62,8 +62,42 @@ class NormalFlowTests(unittest.TestCase):
         for box in ("Jeg mangler tid…", "Jeg mangler noget for at komme videre…",
                     "Jeg gør ting om nogle gange…", "Det burde kunne gøres lettere…",
                     "Jeg har noget, jeg ikke får brugt/solgt…", "Har jeg skjult potentiale?"):
-            self.assertIn("testfirma", self.ns["foerste_spoergsmaal"](box, "testfirma"))
+            description = "Lille skiltefirma med 5 medarbejdere og en meget lang beskrivelse"
+            question = self.ns["foerste_spoergsmaal"](box, description)
+            self.assertNotIn(description, question)
+            self.assertEqual(question, self.ns["foerste_spoergsmaal"](box, "testfirma"))
         self.assertEqual(self.calls, [])
+
+    def test_returgate_contract_and_simulated_decisions(self):
+        """Check prompt instructions and response routing, not real model behaviour."""
+        cases = (
+            ("STATUS: AFGRÆNSET\nUKENDT: Intet afgørende", "VIDERE: Nok grundlag.", "videre"),
+            ("STATUS: AFGRÆNSET\nPROBLEM: Gentaget omprint med spild.\nUKENDT: Årsagen",
+             "VIDERE: Ukendt årsag blokerer ikke vurderingen.", "videre"),
+            ("STATUS: IKKE_AFGRÆNSET\nUKENDT: Om der er ét eller flere forbundne problemer",
+             "SPØRG: Er problemerne forbundet?", "spoerg"),
+            ("STATUS: IKKE_AFGRÆNSET\nUKENDT: Om problemet faktisk gentager sig; ingen data",
+             "OBSERVÉR: Registrér om problemet gentager sig.", "observer"),
+        )
+        for assessment, raw, expected in cases:
+            with self.subTest(expected=expected, assessment=assessment):
+                self.state.afgraensning = assessment
+                self.outputs = [raw]
+                decision, message = self.ns["vurder_afgraenser_feedback"]()
+                self.assertEqual(decision, expected)
+                self.assertEqual(message, raw.split(":", 1)[1].strip())
+                prompt = self.calls[-1]["input"]
+                self.assertIn(assessment, prompt)
+                for rule in (
+                    "Vælg SPØRG kun når et konkret kundesvar er nødvendigt",
+                    "Fortsæt ikke alene",
+                    "Begynd ikke egentlig årsagsanalyse",
+                    "alene fordi mere information kunne være relevant eller interessant",
+                    "Hvis nødvendig viden ikke kan besvares forsvarligt uden observation eller data",
+                    "Hvis Produktporten kan træffe sin vurdering på det eksisterende grundlag",
+                    "VIDERE sender sagen til Produktportens vurdering",
+                ):
+                    self.assertIn(rule, prompt)
 
     def test_debug_activation_is_explicit_persistent_and_reversible(self):
         self.assertFalse(self.ns["debug_aktiv"]())
@@ -209,11 +243,15 @@ class NormalFlowTests(unittest.TestCase):
 
     def test_new_flow_clears_old_data_and_widgets(self):
         self.state.svar_0 = "gammelt svar"
+        self.state.svar_1 = "andet gammelt svar"
+        self.state.samtale = [{"spoergsmaal": "gammelt spørgsmål", "svar": "gammelt svar"}]
         self.state.flow_retning = "gratis"
         self.state.flow_fejl = "RuntimeError"
         self.state.flow_haendelser = [{"gammel": True}]
         self.ns["nulstil_kundeflow"]()
         self.assertNotIn("svar_0", self.state)
+        self.assertNotIn("svar_1", self.state)
+        self.assertEqual(self.state.samtale, [])
         self.assertIsNone(self.state.flow_retning)
         self.assertIsNone(self.state.flow_fejl)
         self.assertEqual(self.state.flow_haendelser, [])
@@ -264,6 +302,9 @@ class NormalFlowTests(unittest.TestCase):
         selected_button[0] = "Gem svar og fortsæt"
         run()
         self.assertEqual(self.state.flow_retning, "gratis")
+        self.assertEqual(self.state.samtale[0]["svar"], answer_text[0])
+        self.assertNotEqual(self.state.samtale[0]["svar"], self.state.virksomhed)
+        self.assertIn("testfirma", self.calls[0]["input"])
         self.assertEqual(len(self.calls), 4)
         selected_button[0] = None
         run()
@@ -295,12 +336,21 @@ class NormalFlowTests(unittest.TestCase):
         selected_button[0] = "Fortsæt"
         run()
         self.assertEqual(self.state.virksomhed, "testfirma")
-        self.assertIn("testfirma", self.state.aktuelt_spoergsmaal)
+        self.assertNotIn("testfirma", self.state.aktuelt_spoergsmaal)
+        self.assertEqual(self.state.samtale, [])
         self.assertEqual(len(self.calls), 4)
         selected_button[0] = None
         run()
         self.assertTrue(any("TESTTYPE: Normalt ende-til-ende" in x for x in displays))
         self.assertTrue(any("Der er endnu ingen kundesvar" in x for x in displays))
+        answer_text[0] = "Kun teksten fra svarfeltet, ikke virksomhedsbeskrivelsen."
+        self.outputs = ["SPØRG: Hvornår sker det?"]
+        selected_button[0] = "Gem svar og fortsæt"
+        run()
+        self.assertEqual(len(self.state.samtale), 1)
+        self.assertEqual(self.state.samtale[0]["svar"], answer_text[0])
+        self.assertEqual(self.state.virksomhed, "testfirma")
+        self.assertIn("testfirma", self.calls[-1]["input"])
 
 
 if __name__ == "__main__":

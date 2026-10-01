@@ -104,32 +104,32 @@ def foerste_spoergsmaal(problem, virksomhed):
     """Boksen bestemmer første spørgsmål – ikke konklusionen."""
     if problem == "Jeg mangler tid…":
         return (
-            f"Når du tænker på arbejdet i din {virksomhed}, "
+            "Når du tænker på arbejdet i din virksomhed, "
             "hvornår oplever du især, at tiden ikke slår til?"
         )
     elif problem == "Jeg mangler noget for at komme videre…":
         return (
-            f"Når arbejdet går i stå i din {virksomhed}, "
+            "Når arbejdet går i stå i din virksomhed, "
             "hvad oplever du typisk, at du mangler for at kunne fortsætte?"
         )
     elif problem == "Jeg gør ting om nogle gange…":
         return (
-            f"Hvilke ting i din {virksomhed} oplever du, "
+            "Hvilke ting i din virksomhed oplever du, "
             "at du nogle gange må gøre om?"
         )
     elif problem == "Det burde kunne gøres lettere…":
         return (
-            f"Hvilken del af arbejdet i din {virksomhed} "
+            "Hvilken del af arbejdet i din virksomhed "
             "føles mere besværlig, end du synes den burde være?"
         )
     elif problem == "Jeg har noget, jeg ikke får brugt/solgt…":
         return (
-            f"Hvad har du i din {virksomhed}, "
+            "Hvad har du i din virksomhed, "
             "som du oplever ikke bliver brugt eller solgt som forventet?"
         )
     else:
         return (
-            f"Hvis du ser på din {virksomhed} som helhed, "
+            "Hvis du ser på din virksomhed som helhed, "
             "hvor kunne du bedst tænke dig at undersøge, "
             "om der gemmer sig et uudnyttet potentiale?"
         )
@@ -422,17 +422,21 @@ Du er returgaten mellem Afgrænseren og Undersøgeren i leanAKey.
 Afgrænserens vurdering er:
 {st.session_state.afgraensning}
 
-Vurdér om der mangler vigtig konkret viden, før sagen senere kan vurderes til et eventuelt mikroprodukt.
-Et afgrænset problem er ikke automatisk klar til et produkt.
+Vurdér om en manglende konkret oplysning er nødvendig for, at næste gate, Produktporten,
+kan træffe sin beslutning på det eksisterende grundlag.
+Et afgrænset problem er ikke automatisk produktgodkendt. VIDERE sender sagen til Produktportens vurdering.
 
 Regler:
 - Vælg kun noget kunden sandsynligvis selv kan svare på uden at gætte.
 - Spørg ikke kunden om en ukendt årsag, som om kunden kender den.
-- Omfang, mønster, variation eller hvad kunden allerede ved/registrerer kan være relevant.
+- Vælg SPØRG kun når et konkret kundesvar er nødvendigt for Produktportens næste beslutning.
+- Fortsæt ikke alene fordi årsagen til et dokumenteret og afgrænset problem er ukendt.
+- Begynd ikke egentlig årsagsanalyse. Efterspørg ikke yderligere mønstre eller variation,
+  alene fordi mere information kunne være relevant eller interessant.
 - Stil kun ét spørgsmål ad gangen.
 - Foreslå ikke løsning, skema, værktøj eller køb.
-- Hvis det vigtigste manglende kræver observation eller måling i virkeligheden, vælg OBSERVÉR.
-- Hvis intet afgørende mangler før næste fase, vælg VIDERE.
+- Hvis nødvendig viden ikke kan besvares forsvarligt uden observation eller data, vælg OBSERVÉR.
+- Hvis Produktporten kan træffe sin vurdering på det eksisterende grundlag, vælg VIDERE.
 
 Svar KUN:
 SPØRG: <ét kort naturligt spørgsmål>
