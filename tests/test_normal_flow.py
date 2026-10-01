@@ -1,6 +1,7 @@
 """Offline integration checks. Load real functions without starting Streamlit or OpenAI."""
 import ast
 from datetime import datetime, timezone
+from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -29,7 +30,7 @@ class NormalFlowTests(unittest.TestCase):
         self.outputs = []
         self.calls = []
         self.ns = {"st": SimpleNamespace(session_state=self.state),
-                   "datetime": datetime, "timezone": timezone,
+                   "datetime": datetime, "timezone": timezone, "deepcopy": deepcopy,
                    "client": SimpleNamespace(responses=SimpleNamespace(create=self.response))}
         self.tree = ast.parse((Path(__file__).parents[1] / "app.py").read_text(encoding="utf-8"))
         nodes = [n for n in self.tree.body if isinstance(n, ast.FunctionDef)]
@@ -47,6 +48,7 @@ class NormalFlowTests(unittest.TestCase):
         self.state.samtale.append({"spoergsmaal": self.state.aktuelt_spoergsmaal, "svar": text})
         self.state.flow_fase = "undersoeger"
         self.ns["fortsaet_kundeflow"]()
+        self.ns["opdater_flow_log"]()
 
     def assert_no_repeat(self):
         count = len(self.calls)
@@ -77,7 +79,7 @@ class NormalFlowTests(unittest.TestCase):
             log = self.ns["lav_kundeflow_log"]()
             self.assertIn(raw, log)
             self.assertIn("ikke verificeret", log)
-            self.assertIn("Returgate", log)
+            self.assertIn("RETURGATE", log)
             self.assertIn("EFTER KUNDESVAR NR.: 2", log)
             self.assert_no_repeat()
 
@@ -119,7 +121,7 @@ class NormalFlowTests(unittest.TestCase):
         self.assertEqual(self.state.flow_retning, "gratis")
         self.assertEqual(len(self.calls), 4)
         self.assertIn("RETNING: MIKROPRODUKT", self.ns["lav_kundeflow_log"]())
-        self.assertIn("Potentiale-regel", self.ns["lav_kundeflow_log"]())
+        self.assertIn("POTENTIALE-REGEL", self.ns["lav_kundeflow_log"]())
 
     def test_role_errors_preserve_partial_results_and_do_not_retry(self):
         success = ["KLAR: Grundlag.", "STATUS: AFGRÆNSET", "VIDERE: Nok."]
@@ -149,7 +151,42 @@ class NormalFlowTests(unittest.TestCase):
         self.answer()
         self.assertEqual(len(self.calls), 2)
         self.assertEqual(self.state.flow_retning, "gratis")
-        self.assertIn("Sikkerhedsgrænse", self.ns["lav_kundeflow_log"]())
+        self.assertIn("SIKKERHEDSGRÆNSE", self.ns["lav_kundeflow_log"]())
+
+    def test_raw_output_is_saved_immediately_before_role_returns(self):
+        raw = "\n  FULDT RÅ OUTPUT  \n\n"
+        def role():
+            self.ns["gem_flow_output"](raw)
+            event = self.state.flow_haendelser[-1]
+            self.assertEqual(event["raa_output"], raw)
+            self.assertIn("modtaget_tid", event)
+            self.assertIsNone(event["resultat"])
+            raise ValueError("fortolkning fejlede efter modtagelse")
+        with self.assertRaises(ValueError):
+            self.ns["kald_flow_rolle"]("Undersøger", role)
+        self.assertEqual(self.state.flow_haendelser[-1]["raa_output"], raw)
+        self.assertIsNone(self.state.flow_aktiv_haendelse)
+        self.assertIn(raw, self.ns["lav_kundeflow_log"]())
+
+    def test_call_snapshots_and_actual_next_actions_are_preserved(self):
+        self.outputs = ["SPØRG: Hvornår?", "KLAR: Grundlag.", "STATUS: AFGRÆNSET",
+                        "VIDERE: Nok.", "RETNING: GRATIS\nBEGRUNDELSE: Kendt viden."]
+        self.answer("første faktiske svar")
+        first = self.state.flow_haendelser[0]
+        self.assertEqual(first["naeste_handling"], "Stil kundespørgsmål: Hvornår?")
+        self.answer("andet faktiske svar")
+        self.assertEqual(len(first["grundlag"]["samtale"]), 1)
+        self.assertEqual(first["grundlag"]["samtale"][0]["svar"], "første faktiske svar")
+        events = self.state.flow_haendelser
+        self.assertEqual([e["kaldnummer"] for e in events], [1, 2, 3, 4, 5])
+        self.assertEqual(events[1]["naeste_handling"], "Aktivér AFGRÆNSER")
+        self.assertEqual(events[2]["naeste_handling"], "Aktivér RETURGATE")
+        self.assertEqual(events[3]["naeste_handling"], "Aktivér PRODUKTPORT")
+        self.assertEqual(events[4]["naeste_handling"], "Afslut: gratis")
+        log = self.ns["lav_kundeflow_log"]()
+        self.assertIn("ANTAL KUNDESVAR: 2", log)
+        self.assertIn("FORTOLKET AFGRÆNSERSTATUS: STATUS: AFGRÆNSET", log)
+        self.assertIn("SAMTALEGRUNDLAG VED KALD", log)
 
     def test_new_flow_clears_old_data_and_widgets(self):
         self.state.svar_0 = "gammelt svar"

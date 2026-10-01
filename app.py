@@ -1,6 +1,7 @@
 import streamlit as st
 from openai import OpenAI
 from datetime import datetime, timezone
+from copy import deepcopy
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
@@ -42,6 +43,7 @@ for navn, standard in {
     "flow_fase": "spoergsmaal", "flow_retning": None, "flow_besked": None,
     "flow_fejl": None, "flow_haendelser": [], "flow_kald": 0,
     "flow_log_aktiv": False, "flow_raa_output": None,
+    "flow_aktiv_haendelse": None,
 }.items():
     if navn not in st.session_state:
         st.session_state[navn] = standard
@@ -52,6 +54,11 @@ st.title("leanAKey")
 def gem_flow_output(output):
     if st.session_state.get("flow_log_aktiv", False):
         st.session_state.flow_raa_output = output
+        # Gem direkte i kaldets journal straks ved modtagelse, før fortolkning.
+        haendelse = st.session_state.get("flow_aktiv_haendelse")
+        if haendelse is not None:
+            haendelse["raa_output"] = output
+            haendelse["modtaget_tid"] = datetime.now(timezone.utc).isoformat()
 
 
 def foerste_spoergsmaal(problem, virksomhed):
@@ -564,6 +571,7 @@ def nulstil_kundeflow():
     st.session_state.flow_kald = 0
     st.session_state.flow_fase = "spoergsmaal"
     st.session_state.flow_log_aktiv = False
+    st.session_state.flow_aktiv_haendelse = None
     # Fjern også tidligere formularværdier ved et nyt forløb.
     for navn in list(st.session_state.keys()):
         if navn.startswith("svar_"):
@@ -571,10 +579,30 @@ def nulstil_kundeflow():
 
 
 def kald_flow_rolle(rolle, funktion, *argumenter):
+    # Forrige kalds faktiske næste handling er nu kendt: denne rolle blev aktiveret.
+    for tidligere in reversed(st.session_state.flow_haendelser):
+        if tidligere.get("kaldnummer"):
+            if tidligere.get("naeste_handling") is None:
+                tidligere["naeste_handling"] = f"Aktivér {rolle.upper()}"
+            break
     haendelse = {"rolle": rolle, "tid": datetime.now(timezone.utc).isoformat(),
                  "svar_nr": len(st.session_state.samtale),
+                 "kaldnummer": st.session_state.flow_kald + 1,
+                 "grundlag": deepcopy({
+                     "startboks": st.session_state.valgt_problem,
+                     "virksomhed": st.session_state.virksomhed,
+                     "samtale": st.session_state.samtale,
+                     "undersoegelse_klar": st.session_state.undersoegelse_klar,
+                     "observation_mangler": st.session_state.observation_mangler,
+                     "afgraensning": st.session_state.afgraensning,
+                     "afgraenser_feedback": st.session_state.afgraenser_feedback,
+                     "argumenter": argumenter,
+                 }),
+                 "fase_foer": st.session_state.flow_fase,
+                 "naeste_handling": None,
                  "raa_output": None, "resultat": None, "fejl": None}
     st.session_state.flow_haendelser.append(haendelse)
+    st.session_state.flow_aktiv_haendelse = haendelse
     st.session_state.flow_raa_output = None
     st.session_state.flow_log_aktiv = True
     st.session_state.flow_kald += 1
@@ -584,10 +612,12 @@ def kald_flow_rolle(rolle, funktion, *argumenter):
         return resultat
     except Exception as fejl:
         haendelse["fejl"] = type(fejl).__name__
+        haendelse["naeste_handling"] = "Stop ved fejl; ingen automatisk genkørsel"
         raise
     finally:
         haendelse["raa_output"] = st.session_state.flow_raa_output
         st.session_state.flow_log_aktiv = False
+        st.session_state.flow_aktiv_haendelse = None
 
 
 def afslut_kundeflow(retning, besked):
@@ -667,21 +697,57 @@ def fortsaet_kundeflow():
         # Ingen gentagelse ved rerun; kunden kan starte et nyt forløb eksplicit.
 
 
+def opdater_flow_log():
+    """Journalfør den faktiske tilstand efter overgangen uden at styre flowet."""
+    for haendelse in reversed(st.session_state.flow_haendelser):
+        if haendelse.get("kaldnummer"):
+            if haendelse.get("naeste_handling") is None:
+                if st.session_state.flow_fejl:
+                    handling = f"Stop ved forløbsfejl: {st.session_state.flow_fejl}"
+                elif st.session_state.flow_fase == "afsluttet":
+                    handling = f"Afslut: {st.session_state.flow_retning}"
+                elif st.session_state.flow_fase == "spoergsmaal":
+                    handling = f"Stil kundespørgsmål: {st.session_state.aktuelt_spoergsmaal}"
+                else:
+                    handling = f"Afventer fase: {st.session_state.flow_fase}"
+                haendelse["naeste_handling"] = handling
+            break
+
+
 def lav_kundeflow_log():
+    opdater_flow_log()
     linjer = ["TESTTYPE: Normalt ende-til-ende-forløb", "TESTVERSION / COMMIT: ikke verificeret",
+              "LOGFORMAT: 2 – rå svar gemt ved modtagelse; grundlag pr. rollekald",
               f"LOGTID: {datetime.now(timezone.utc).isoformat()} (UTC)",
               f"VALGT BOKS: {st.session_state.valgt_problem}",
               f"VIRKSOMHED: {st.session_state.virksomhed}"]
+    linjer.append(f"ANTAL KUNDESVAR: {len(st.session_state.samtale)}")
     for nr, punkt in enumerate(st.session_state.samtale, start=1):
         linjer.extend(["", f"SPØRGSMÅL {nr}: {punkt['spoergsmaal']}", f"SVAR {nr}: {punkt['svar']}"])
     for nr, haendelse in enumerate(st.session_state.flow_haendelser, start=1):
-        linjer.extend(["", f"HÆNDELSE {nr}: {haendelse['rolle']}",
+        linjer.extend(["", f"HÆNDELSE {nr}: {haendelse['rolle'].upper()}",
+                      f"ROLLEKALD NR.: {haendelse.get('kaldnummer', 'ikke registreret / teknisk hændelse')}",
                       f"TID: {haendelse.get('tid', 'ikke tilgængeligt')}",
+                      f"API-SVAR MODTAGET: {haendelse.get('modtaget_tid', 'ikke registreret')}",
                       f"EFTER KUNDESVAR NR.: {haendelse.get('svar_nr', 'ikke tilgængeligt')}",
+                      f"FASE FØR KALD: {haendelse.get('fase_foer', 'ikke registreret')}",
                       f"Fortolket resultat: {haendelse['resultat']}",
+                      f"NÆSTE HANDLING: {haendelse.get('naeste_handling') or 'ikke registreret'}",
                       f"Fejl: {haendelse['fejl'] or 'ingen'}", "Rå output – START",
                       haendelse["raa_output"] if haendelse["raa_output"] is not None else "[ikke tilgængeligt / ingen AI i dette trin]",
                       "Rå output – SLUT"])
+        grundlag = haendelse.get("grundlag")
+        if grundlag is not None:
+            linjer.append("SAMTALEGRUNDLAG VED KALD – START")
+            linjer.extend([f"Startboks: {grundlag['startboks']}", f"Virksomhed: {grundlag['virksomhed']}"])
+            for svar_nr, punkt in enumerate(grundlag["samtale"], start=1):
+                linjer.extend([f"Spørgsmål {svar_nr}: {punkt['spoergsmaal']}", f"Svar {svar_nr}: {punkt['svar']}"])
+            for felt in ("undersoegelse_klar", "observation_mangler", "afgraensning", "afgraenser_feedback", "argumenter"):
+                linjer.append(f"{felt}: {grundlag[felt]}")
+            linjer.append("SAMTALEGRUNDLAG VED KALD – SLUT")
+        if haendelse["rolle"] == "Afgrænser" and isinstance(haendelse["resultat"], str):
+            status = next((linje for linje in haendelse["resultat"].splitlines() if linje.upper().startswith("STATUS:")), "STATUS: ikke identificeret")
+            linjer.append(f"FORTOLKET AFGRÆNSERSTATUS: {status}")
     linjer.extend(["", f"ENDELIG KUNDERETNING: {st.session_state.flow_retning or 'ikke afsluttet'}",
                   f"KUNDEBESKED: {st.session_state.flow_besked or ''}",
                   f"FASE: {st.session_state.flow_fase}", f"FORLØBSFEJL: {st.session_state.flow_fejl or 'ingen'}",
@@ -1021,6 +1087,7 @@ else:
                 st.session_state.flow_fase = "undersoeger"
                 with st.spinner("Vi ser nærmere på dine svar…"):
                     fortsaet_kundeflow()
+                opdater_flow_log()
                 st.rerun()
             else:
                 st.warning("Skriv lidt om det, du oplever, før du fortsætter.")
@@ -1028,7 +1095,7 @@ else:
     # Intern testvisning er kun synlig, når URL'en indeholder ?testlog=1.
     if st.query_params.get("testlog") == "1" and st.session_state.samtale:
         st.divider()
-        with st.expander("Intern testlog – kopiér hele forløbet", expanded=False):
+        with st.expander("Intern testlog – kopiér hele forløbet", expanded=True):
             st.code(lav_kundeflow_log(), language=None)
 
     if st.button("Start et nyt forløb", key="nyt_forloeb"):
