@@ -2,6 +2,8 @@ import streamlit as st
 from openai import OpenAI
 from datetime import datetime, timezone
 from copy import deepcopy
+from hashlib import sha256
+from pathlib import Path
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
@@ -48,7 +50,44 @@ for navn, standard in {
     if navn not in st.session_state:
         st.session_state[navn] = standard
 
+def debug_aktiv():
+    """Bevar en udtrykkeligt aktiveret debugvisning gennem skærmskift."""
+    vaerdi = st.query_params.get("testlog")
+    if vaerdi is not None:
+        st.session_state.debug_testlog_aktiv = vaerdi == "1"
+    return st.session_state.get("debug_testlog_aktiv", False)
+
+
+def debug_version():
+    # Dette er et buildmærke, aldrig en påstået verificeret Git-commit.
+    version = {"build": "debug-infrastruktur-2026-10-01.1",
+               "deployment": "ikke verificeret", "kilde_sha256": "ikke tilgængelig"}
+    try:
+        kilde = Path(__file__).read_text(encoding="utf-8")
+        version["kilde_sha256"] = sha256(kilde.encode("utf-8")).hexdigest()
+    except (OSError, NameError, UnicodeError):
+        pass
+    return version
+
+
+def vis_debug_status():
+    if debug_aktiv():
+        version = debug_version()
+        st.code("\n".join([
+            "DEBUGMODE: aktiv", "LOGFORMAT: 2",
+            f"TESTLOG-PARAMETER REGISTRERET NU: {st.query_params.get('testlog')!r}",
+            "DEBUGAKTIVERING: gemt i denne session efter testlog=1",
+            f"BUILD-MÆRKE (ikke Git-commit): {version['build']}",
+            f"FAKTISK DEPLOYMENT-COMMIT: {version['deployment']}",
+            f"KILDEFIL SHA-256 (UTF-8, normaliserede linjeskift): {version['kilde_sha256']}",
+            f"STREAMLIT-VERSION: {getattr(st, '__version__', 'ikke tilgængelig')}",
+            f"GEMTE KUNDESVAR: {len(st.session_state.samtale)}",
+            f"GEMTE ROLLEHÆNDELSER: {len(st.session_state.flow_haendelser)}",
+        ]), language=None)
+
+
 st.title("leanAKey")
+vis_debug_status()
 
 
 def gem_flow_output(output):
@@ -716,8 +755,12 @@ def opdater_flow_log():
 
 def lav_kundeflow_log():
     opdater_flow_log()
+    version = debug_version()
     linjer = ["TESTTYPE: Normalt ende-til-ende-forløb", "TESTVERSION / COMMIT: ikke verificeret",
               "LOGFORMAT: 2 – rå svar gemt ved modtagelse; grundlag pr. rollekald",
+              f"BUILD-MÆRKE (ikke Git-commit): {version['build']}",
+              f"KILDEFIL SHA-256 VED LOGVISNING: {version['kilde_sha256']}",
+              "Versionsoplysninger gælder denne visning; de verificerer ikke tidligere kalds kodeversion.",
               f"LOGTID: {datetime.now(timezone.utc).isoformat()} (UTC)",
               f"VALGT BOKS: {st.session_state.valgt_problem}",
               f"VIRKSOMHED: {st.session_state.virksomhed}"]
@@ -1093,10 +1136,12 @@ else:
                 st.warning("Skriv lidt om det, du oplever, før du fortsætter.")
 
     # Intern testvisning er kun synlig, når URL'en indeholder ?testlog=1.
-    if st.query_params.get("testlog") == "1" and st.session_state.samtale:
+    if debug_aktiv():
         st.divider()
         with st.expander("Intern testlog – kopiér hele forløbet", expanded=True):
             st.code(lav_kundeflow_log(), language=None)
+            if not st.session_state.samtale:
+                st.caption("Der er endnu ingen kundesvar i denne session. Der er ikke startet nogen AI-test.")
 
     if st.button("Start et nyt forløb", key="nyt_forloeb"):
         nulstil_kundeflow()

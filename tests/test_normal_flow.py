@@ -2,6 +2,7 @@
 import ast
 from datetime import datetime, timezone
 from copy import deepcopy
+from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -29,8 +30,10 @@ class NormalFlowTests(unittest.TestCase):
                            flow_haendelser=[], flow_kald=0, flow_log_aktiv=False, flow_raa_output=None)
         self.outputs = []
         self.calls = []
-        self.ns = {"st": SimpleNamespace(session_state=self.state),
+        self.ns = {"st": SimpleNamespace(session_state=self.state, query_params={}),
                    "datetime": datetime, "timezone": timezone, "deepcopy": deepcopy,
+                   "Path": Path, "sha256": sha256,
+                   "__file__": str(Path(__file__).parents[1] / "app.py"),
                    "client": SimpleNamespace(responses=SimpleNamespace(create=self.response))}
         self.tree = ast.parse((Path(__file__).parents[1] / "app.py").read_text(encoding="utf-8"))
         nodes = [n for n in self.tree.body if isinstance(n, ast.FunctionDef)]
@@ -61,6 +64,22 @@ class NormalFlowTests(unittest.TestCase):
                     "Jeg har noget, jeg ikke får brugt/solgt…", "Har jeg skjult potentiale?"):
             self.assertIn("testfirma", self.ns["foerste_spoergsmaal"](box, "testfirma"))
         self.assertEqual(self.calls, [])
+
+    def test_debug_activation_is_explicit_persistent_and_reversible(self):
+        self.assertFalse(self.ns["debug_aktiv"]())
+        self.ns["st"].query_params["testlog"] = "1"
+        self.assertTrue(self.ns["debug_aktiv"]())
+        self.ns["st"].query_params.clear()
+        self.assertTrue(self.ns["debug_aktiv"]())
+        self.ns["st"].query_params["testlog"] = "0"
+        self.assertFalse(self.ns["debug_aktiv"]())
+        self.assertEqual(self.calls, [])
+
+    def test_version_reports_source_hash_without_claiming_commit(self):
+        version = self.ns["debug_version"]()
+        source = (Path(__file__).parents[1] / "app.py").read_text(encoding="utf-8")
+        self.assertEqual(version["kilde_sha256"], sha256(source.encode("utf-8")).hexdigest())
+        self.assertEqual(version["deployment"], "ikke verificeret")
 
     def test_four_port_endings_and_full_raw_log(self):
         for raw_direction, expected in (("MIKROPRODUKT", "mikroprodukt"), ("GRATIS", "gratis"),
@@ -236,7 +255,7 @@ class NormalFlowTests(unittest.TestCase):
             buttons.clear()
             with patch.dict(sys.modules, {"streamlit": fake_st, "openai": fake_openai}):
                 try:
-                    exec(compile(source, "app.py", "exec"), {})
+                    exec(compile(source, "app.py", "exec"), {"__file__": str(Path(__file__).parents[1] / "app.py")})
                 except Rerun:
                     pass
         # An actual customer submission automatically runs all four existing roles.
@@ -268,6 +287,8 @@ class NormalFlowTests(unittest.TestCase):
         run()
         self.assertIn("Kør Produktport-test (5 cases)", buttons)
         self.assertIn("Har jeg skjult potentiale?", buttons)
+        self.assertTrue(any("DEBUGMODE: aktiv" in x for x in displays))
+        self.assertTrue(any("GEMTE KUNDESVAR: 0" in x for x in displays))
         selected_button[0] = "Jeg mangler tid…"
         run()
         self.assertEqual(self.state.valgt_problem, "Jeg mangler tid…")
@@ -276,6 +297,10 @@ class NormalFlowTests(unittest.TestCase):
         self.assertEqual(self.state.virksomhed, "testfirma")
         self.assertIn("testfirma", self.state.aktuelt_spoergsmaal)
         self.assertEqual(len(self.calls), 4)
+        selected_button[0] = None
+        run()
+        self.assertTrue(any("TESTTYPE: Normalt ende-til-ende" in x for x in displays))
+        self.assertTrue(any("Der er endnu ingen kundesvar" in x for x in displays))
 
 
 if __name__ == "__main__":
