@@ -426,7 +426,10 @@ A: Besvarbar og beslutningskritisk. Kunden forventes rimeligt at kende svaret.
    kan ændre den forsvarlige slutretning.
 B: Beslutningskritisk, men kræver observation/data. Returgate vælger OBSERVÉR;
    fremkald ikke et gæt.
-C: Relevant ukendt, som et muligt undersøgelsesværktøj netop kan belyse.
+C: Relevant ukendt om et allerede dokumenteret forbedringsproblem,
+   som et muligt undersøgelsesværktøj netop kan belyse.
+   Type C må kun bruges, når kundens oplysninger allerede dokumenterer et konkret forbedringsproblem.
+   Manglende viden, der først skal afgøre, om et sådant problem findes, tilhører A eller B.
    Returgate vælger VIDERE. Denne ukendte må ikke gøres til adgangskrav.
 D: Ikke beslutningskritisk ukendt. Returgate vælger VIDERE; efterspørg ikke interessante
    ekstra mønstre, variation eller årsagsdetaljer alene for mere information.
@@ -434,13 +437,25 @@ Mulig beslutningsværdi er ikke alene nok til at spørge: skeln A/B fra den vide
 som et muligt værktøj skal frembringe. Opfind ikke et nyt informationsbehov for at sælge.
 Tidsforbrug alene dokumenterer ikke spild eller forbedringspotentiale. Afklar kun det,
 der kan skelne slutretningerne; kræv ikke automatisk præcise minutter, proceskort eller årsagsanalyse.
+Skeln mellem at afklare, hvad arbejdet eller problemet konkret består i, og at undersøge
+årsagen til et dokumenteret problem. Hvis aktivitetens indhold er nødvendigt for at skelne
+et muligt proces-/flowproblem fra nødvendigt arbejde, er denne afklaring beslutningskritisk
+og tilhører A eller B afhængigt af, om kunden kan svare forsvarligt uden observation/data.
+Den er ikke i sig selv årsagsanalyse.
+Tidsforbrug, overskridelse af forventet tid og deraf følgende ventetid/forsinkelse dokumenterer
+ikke alene, at selve aktiviteten rummer et forbedringsproblem. Nødvendigt arbejde må ikke
+automatisk behandles som spild.
+Et mikroprodukt må ikke begrundes alene med, at et værktøj kan undersøge,
+om der overhovedet findes et forbedringsproblem.
 VIDERE betyder kun tilstrækkeligt grundlag til en forsvarlig vurdering, ikke produktgodkendelse.
 Produktporten kan fortsat vælge alle fire slutretninger under sine eksisterende beskyttelsesregler.
 A/B-mangler skal normalt fanges af Returgate. Opdager Produktporten alligevel en sådan
 mangel, er GRATIS et sikkerhedsnet frem for at gætte eller sælge; dette er ikke den normale vej til GRATIS.
 C/D-mangler må ikke alene begrunde GRATIS og giver heller ikke automatisk MIKROPRODUKT.
-Ukendt årsag eller endnu ikke kortlagt sted i processen må ikke i sig selv blokere,
-når et konkret problem og dets betydning eller gentagelse allerede er dokumenteret.
+Ukendt årsag, mønster, variation eller placering må ikke i sig selv blokere,
+når et konkret forbedringsproblem allerede er dokumenteret; den ukendte årsag kan være C.
+Reglen gælder ikke, hvis den manglende viden er nødvendig for først at afgøre,
+om der findes et forbedringsproblem.
 """
 
 

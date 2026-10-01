@@ -120,6 +120,21 @@ class NormalFlowTests(unittest.TestCase):
             self.assertIn(self.ns["BESLUTNINGSKONTRAKT"], call["input"])
             self.assertNotIn("Autoværksted", call["input"])
 
+    def test_contract_distinguishes_problem_evidence_from_investigation_unknowns(self):
+        """Protect the shared instructions; this does not evaluate actual AI choices."""
+        contract = self.ns["BESLUTNINGSKONTRAKT"]
+        for instruction in (
+            "Type C må kun bruges, når kundens oplysninger allerede dokumenterer et konkret forbedringsproblem.",
+            "Manglende viden, der først skal afgøre, om et sådant problem findes, tilhører A eller B.",
+            "Hvis aktivitetens indhold er nødvendigt for at skelne",
+            "og tilhører A eller B afhængigt af, om kunden kan svare forsvarligt uden observation/data.",
+            "Den er ikke i sig selv årsagsanalyse.",
+            "når et konkret forbedringsproblem allerede er dokumenteret; den ukendte årsag kan være C.",
+            "Et mikroprodukt må ikke begrundes alene med, at et værktøj kan undersøge,\nom der overhovedet findes et forbedringsproblem.",
+        ):
+            with self.subTest(instruction=instruction):
+                self.assertIn(instruction, contract)
+
     def test_isolated_contract_battery_and_state_restoration(self):
         original = deepcopy(dict(self.state))
         raw = "\nVIDERE: Hele begrundelsen.  \n"
