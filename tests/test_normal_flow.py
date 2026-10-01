@@ -37,6 +37,9 @@ class NormalFlowTests(unittest.TestCase):
                    "client": SimpleNamespace(responses=SimpleNamespace(create=self.response))}
         self.tree = ast.parse((Path(__file__).parents[1] / "app.py").read_text(encoding="utf-8"))
         nodes = [n for n in self.tree.body if isinstance(n, ast.FunctionDef)]
+        constants = [n for n in self.tree.body if isinstance(n, ast.Assign)
+                     and any(isinstance(t, ast.Name) and t.id in {"BESLUTNINGSKONTRAKT", "KONTRAKT_CASES"} for t in n.targets)]
+        exec(compile(ast.Module(body=constants, type_ignores=[]), "app.py", "exec"), self.ns)
         exec(compile(ast.Module(body=nodes, type_ignores=[]), "app.py", "exec"), self.ns)
 
     def response(self, **kwargs):
@@ -108,6 +111,39 @@ class NormalFlowTests(unittest.TestCase):
         self.ns["st"].query_params["testlog"] = "0"
         self.assertFalse(self.ns["debug_aktiv"]())
         self.assertEqual(self.calls, [])
+
+    def test_shared_contract_is_used_by_both_roles(self):
+        self.outputs = ["VIDERE: Grundlag.", "RETNING: GRATIS\nBEGRUNDELSE: Kendt viden."]
+        self.ns["vurder_afgraenser_feedback"]()
+        self.ns["vurder_produktport"]("STATUS: AFGRÆNSET")
+        for call in self.calls:
+            self.assertIn(self.ns["BESLUTNINGSKONTRAKT"], call["input"])
+            self.assertNotIn("Autoværksted", call["input"])
+
+    def test_isolated_contract_battery_and_state_restoration(self):
+        original = deepcopy(dict(self.state))
+        raw = "\nVIDERE: Hele begrundelsen.  \n"
+        self.outputs = ["SPØRG: Hvad går tiden med?", raw, "OBSERVÉR: Gentagelse.", raw,
+                        raw, "RETNING: GRATIS\nBEGRUNDELSE: Allerede kendt.", raw,
+                        "RETNING: MØDE\nBEGRUNDELSE: Forbundne problemer.", "UDENFOR: Jura."]
+        log = self.ns["koer_kontrakt_test"]()
+        self.assertEqual(len(self.calls), 9)
+        self.assertIn("7 bestået; 0 fejlet; 0 ikke kørt", log)
+        self.assertIn(raw, log)
+        self.assertEqual(dict(self.state), original)
+        self.assertIn("Du er Undersøgeren", self.calls[-1]["input"])
+
+    def test_contract_battery_stops_on_mismatch_or_error(self):
+        for output in ("VIDERE: Afvigelse.", RuntimeError("secret")):
+            with self.subTest(output=type(output).__name__):
+                original = deepcopy(dict(self.state))
+                self.outputs = [output]
+                before = len(self.calls)
+                log = self.ns["koer_kontrakt_test"]()
+                self.assertEqual(len(self.calls)-before, 1)
+                self.assertIn("1 fejlet; 6 ikke kørt", log)
+                self.assertNotIn("secret", log)
+                self.assertEqual(dict(self.state), original)
 
     def test_version_reports_source_hash_without_claiming_commit(self):
         version = self.ns["debug_version"]()

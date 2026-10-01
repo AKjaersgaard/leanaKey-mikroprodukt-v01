@@ -416,6 +416,34 @@ Samtalen:
     return response.output_text.strip()
 
 
+BESLUTNINGSKONTRAKT = """
+FÆLLES BESLUTNINGSKONTRAKT – RETURGATE OG PRODUKTPORT:
+En manglende oplysning må kun blokere Produktporten, hvis svaret realistisk kan ændre,
+hvilken af MIKROPRODUKT, GRATIS, MØDE eller STOP der er forsvarlig.
+Vurdér beslutningsværdi, ikke informationsmængde. Klassificér manglen internt:
+A: Besvarbar og beslutningskritisk. Kunden forventes rimeligt at kende svaret.
+   Returgate vælger SPØRG: ét diskriminerende spørgsmål, hvis forskellige svar realistisk
+   kan ændre den forsvarlige slutretning.
+B: Beslutningskritisk, men kræver observation/data. Returgate vælger OBSERVÉR;
+   fremkald ikke et gæt.
+C: Relevant ukendt, som et muligt undersøgelsesværktøj netop kan belyse.
+   Returgate vælger VIDERE. Denne ukendte må ikke gøres til adgangskrav.
+D: Ikke beslutningskritisk ukendt. Returgate vælger VIDERE; efterspørg ikke interessante
+   ekstra mønstre, variation eller årsagsdetaljer alene for mere information.
+Mulig beslutningsværdi er ikke alene nok til at spørge: skeln A/B fra den viden i C,
+som et muligt værktøj skal frembringe. Opfind ikke et nyt informationsbehov for at sælge.
+Tidsforbrug alene dokumenterer ikke spild eller forbedringspotentiale. Afklar kun det,
+der kan skelne slutretningerne; kræv ikke automatisk præcise minutter, proceskort eller årsagsanalyse.
+VIDERE betyder kun tilstrækkeligt grundlag til en forsvarlig vurdering, ikke produktgodkendelse.
+Produktporten kan fortsat vælge alle fire slutretninger under sine eksisterende beskyttelsesregler.
+A/B-mangler skal normalt fanges af Returgate. Opdager Produktporten alligevel en sådan
+mangel, er GRATIS et sikkerhedsnet frem for at gætte eller sælge; dette er ikke den normale vej til GRATIS.
+C/D-mangler må ikke alene begrunde GRATIS og giver heller ikke automatisk MIKROPRODUKT.
+Ukendt årsag eller endnu ikke kortlagt sted i processen må ikke i sig selv blokere,
+når et konkret problem og dets betydning eller gentagelse allerede er dokumenteret.
+"""
+
+
 def vurder_afgraenser_feedback():
     prompt = f"""
 Du er returgaten mellem Afgrænseren og Undersøgeren i leanAKey.
@@ -425,6 +453,8 @@ Afgrænserens vurdering er:
 Vurdér om en manglende konkret oplysning er nødvendig for, at næste gate, Produktporten,
 kan træffe sin beslutning på det eksisterende grundlag.
 Et afgrænset problem er ikke automatisk produktgodkendt. VIDERE sender sagen til Produktportens vurdering.
+
+{BESLUTNINGSKONTRAKT}
 
 Regler:
 - Vælg kun noget kunden sandsynligvis selv kan svare på uden at gætte.
@@ -501,6 +531,8 @@ Hårde regler:
 - Opfind ikke fakta, årsager, økonomisk gevinst eller forbedringer.
 - Foreslå endnu ikke hvilket værktøj der skal bruges.
 
+{BESLUTNINGSKONTRAKT}
+
 Svar KUN:
 RETNING: <MIKROPRODUKT, GRATIS, MØDE eller STOP>
 BEGRUNDELSE: <kort, konkret begrundelse baseret på sagen>
@@ -553,6 +585,71 @@ HYPOTESE: Der kan være uudnyttet potentiale, men det er ikke dokumenteret.
 UKENDT: Om der faktisk findes et konkret forbedringsproblem.
 NÆSTE_TRIN: OBSERVATION MANGLER""","skjult_potentiale":True}
 ]
+
+KONTRAKT_CASES = [
+    {"navn": "1 – Autoværksted", "grundlag": "STATUS: AFGRÆNSET\nFAKTA: Vi bruger tit meget længere tid end forventet på at gøre bilerne klar til mekanikeren.\nUKENDT: Hvad den ekstra tid faktisk går med.", "roller": [("Returgate", "spoerg")], "vurdering": "Spørgsmålet skal afklare arbejdets indhold med beslutningsværdi, ikke kræve minutter, proceskort eller årsagsanalyse."},
+    {"navn": "2 – Omprint", "grundlag": "STATUS: AFGRÆNSET\nPROBLEM: Sort print er utydeligt og skilte må printes om.\nFAKTA: Ca. fem gange om måneden med materialespild, forsinkelser og overarbejde.\nUKENDT: Årsagen er ukendt.", "roller": [("Returgate", "videre")], "vurdering": "Ukendt årsag må ikke blokere."},
+    {"navn": "3 – Observation", "grundlag": "STATUS: IKKE_AFGRÆNSET\nFAKTA: Kunden oplevede én mulig dobbeltregistrering, men ved ikke om der faktisk blev registreret to gange eller om det gentager sig. Kunden har ingen registreringer og kan ikke svare forsvarligt ud fra hukommelsen.\nUKENDT: Om der faktisk findes et gentaget dobbeltarbejde; kræver observation af arbejdet.", "roller": [("Returgate", "observer")], "vurdering": "Ingen gæt; nødvendig observation før vurdering."},
+    {"navn": "4 – Interessant ekstra variation", "grundlag": "STATUS: AFGRÆNSET\nPROBLEM: Tal summeres manuelt og kopieres til fakturaer.\nFAKTA: 25 fakturaer om måneden, 10-30 minutter pr. faktura og to dokumenterede regnefejl. Kunden kender ikke fejlmønstret.\nUKENDT: Hvilken ugedag fakturaerne skrives; der er ingen dokumenteret forbindelse til problemet.", "roller": [("Returgate", "videre")], "vurdering": "Interessant ekstra variation må ikke blokere eller skabe nyt behov."},
+    {"navn": "5 – Kunden kender allerede svaret", "grundlag": "STATUS: AFGRÆNSET\nPROBLEM: Ekstra ture efter linned under næsten hver rengøring.\nFAKTA: Kunden har registreret arbejdet i to uger og ved allerede, at linnedturene står for hovedparten af den ekstra tid.\nUKENDT: Intet afgørende. Ingen dokumenterede forbundne problemer.", "roller": [("Returgate", "videre"), ("Produktport", "gratis")], "vurdering": "Ingen opfundet ny ukendt for at gøre salg muligt."},
+    {"navn": "6a – Kompleks", "grundlag": "STATUS: FLERE_FORBUNDNE\nFAKTA: Materialemangel i indkøb, ændret produktionsplan, maskinstop og ophobning i kvalitet påvirker hinanden hver uge.\nUKENDT: Årsagerne er ikke kortlagt.", "roller": [("Returgate", "videre"), ("Produktport", "moede")], "vurdering": "Dokumenteret kompleksitet bevarer MØDE-beskyttelsen."},
+    {"navn": "6b – Uden for LEAN", "grundlag": "Jeg ønsker en juridisk vurdering af, om min konkurrenceklausul er lovlig. Det handler om lovligheden, ikke en arbejdsgang.", "roller": [("Undersøger", "udenfor")], "vurdering": "Respektér legitimt stop før Returgate; ingen kunstig passage."},
+]
+
+
+def koer_kontrakt_test():
+    """Isoleret manuel Testlab-kørsel; gendan hele kundens tilstand efter testen."""
+    gammel_tilstand = deepcopy(dict(st.session_state))
+    resultater, forsoeg = [], 0
+    try:
+        for case in KONTRAKT_CASES:
+            nulstil_kundeflow()
+            st.session_state.valgt_problem = "Det burde kunne gøres lettere…"
+            st.session_state.virksomhed = "Virksomhed med den beskrevne problemstilling"
+            st.session_state.afgraensning = case["grundlag"]
+            st.session_state.samtale = [{"spoergsmaal": "Hvad ønsker du hjælp til?", "svar": case["grundlag"]}]
+            resultat = {"case": case["navn"], "grundlag": case["grundlag"], "vurdering": case["vurdering"], "kald": [], "fejl": None}
+            resultater.append(resultat)
+            for rolle, forventet in case["roller"]:
+                forsoeg += 1
+                try:
+                    if rolle == "Returgate":
+                        faktisk, _ = kald_flow_rolle(rolle, vurder_afgraenser_feedback)
+                    elif rolle == "Produktport":
+                        faktisk, _ = kald_flow_rolle(rolle, vurder_produktport, case["grundlag"])
+                    else:
+                        faktisk, _ = kald_flow_rolle(rolle, vurder_naeste_skridt)
+                except Exception as fejl:
+                    resultat["fejl"] = type(fejl).__name__
+                    faktisk = "fejl"
+                event = st.session_state.flow_haendelser[-1]
+                resultat["kald"].append({"rolle": rolle, "forventet": forventet, "faktisk": faktisk, "raa_output": event.get("raa_output")})
+                if faktisk != forventet:
+                    # Stop ved første afvigelse; bevar rå resultat uden yderligere kald.
+                    return lav_kontrakt_testlog(resultater, forsoeg)
+        return lav_kontrakt_testlog(resultater, forsoeg)
+    finally:
+        st.session_state.clear()
+        st.session_state.update(gammel_tilstand)
+
+
+def lav_kontrakt_testlog(resultater, forsoeg):
+    linjer = ["TESTTYPE: Niveau 6 – fælles beslutningskontrakt (6 cases, case 6 har to grene)",
+              "TESTVERSION / COMMIT: ikke verificeret", f"DATO/TID: {datetime.now(timezone.utc).isoformat()} (UTC)",
+              f"KILDEFIL SHA-256 VED LOGVISNING: {debug_version()['kilde_sha256']}",
+              "Beslutninger kontrolleres automatisk; spørgsmålsværdi og begrundelser kræver faglig råoutput-vurdering."]
+    bestaaet = 0
+    for resultat in resultater:
+        ok = not resultat["fejl"] and all(k["faktisk"] == k["forventet"] for k in resultat["kald"])
+        bestaaet += int(ok)
+        linjer.extend(["", resultat["case"], "INPUT:", resultat["grundlag"], "FAGLIG KONTROL: " + resultat["vurdering"], "Fejl: " + (resultat["fejl"] or "ingen")])
+        for kald in resultat["kald"]:
+            linjer.extend([f"ROLLE: {kald['rolle']}; forventet: {kald['forventet']}; faktisk: {kald['faktisk']}",
+                          "Rå output – START", kald["raa_output"] if kald["raa_output"] is not None else "[ikke tilgængeligt]", "Rå output – SLUT"])
+    linjer.extend(["", f"Beslutningskontrol: {bestaaet} bestået; {len(resultater)-bestaaet} fejlet; {len(KONTRAKT_CASES)-len(resultater)} ikke kørt",
+                  f"Planlagte rollekald forsøgt: {forsoeg}; højst 9 uden SDK-genforsøg.", "Faktiske API-forsøg, tokens og pris ikke målt. Ingen automatisk genkørsel."])
+    return "\n".join(linjer)
+
 
 def koer_produktport_test():
     resultater = []
@@ -1032,6 +1129,15 @@ if st.session_state.valgt_problem is None:
         if st.session_state.get("produktport_testlog"):
             st.write("**Produktport-testlog – kopiér hele kørslen**")
             st.code(st.session_state.produktport_testlog, language=None)
+
+        st.divider()
+        st.caption("Testniveau 6: fælles beslutningskontrakt. 6 cases med to grene i case 6; højst 9 rollekald. Stop ved første afvigelse.")
+        if st.button("Kør beslutningskontrakt-test (6 cases)", key="koer_kontrakt_test"):
+            with st.spinner("Tester beslutningskontrakten…"):
+                st.session_state.kontrakt_testlog = koer_kontrakt_test()
+        if st.session_state.get("kontrakt_testlog"):
+            st.write("**Beslutningskontrakt-testlog – kopiér hele kørslen**")
+            st.code(st.session_state.kontrakt_testlog, language=None)
 
     st.subheader("Noget du kan genkende?")
     st.write("Vælg den situation, der passer bedst på det, du oplever lige nu.")
