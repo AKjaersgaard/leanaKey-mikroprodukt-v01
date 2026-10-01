@@ -1,5 +1,6 @@
 import streamlit as st
 from openai import OpenAI
+from datetime import datetime, timezone
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
@@ -432,6 +433,8 @@ BEGRUNDELSE: <kort, konkret begrundelse baseret på sagen>
 Kundens startboks:\n{st.session_state.valgt_problem}\n\nAfgrænserens output:\n{afgraensning}
 """
     response = client.responses.create(model="gpt-5.6-luna", input=prompt)
+    # Bevar rå output til Testlab uden at ændre den eksisterende fortolkning.
+    st.session_state.produktport_raa_output = response.output_text
     tekst = response.output_text.strip()
     retning = "stop"
     for linje in tekst.splitlines():
@@ -482,12 +485,47 @@ def koer_produktport_test():
     try:
         for case in PRODUTPORT_CASES:
             st.session_state.valgt_problem = "Har jeg skjult potentiale?" if case.get("skjult_potentiale") else "Det burde kunne gøres lettere…"
-            retning, output = vurder_produktport(case["afgraensning"])
+            st.session_state.produktport_raa_output = None
+            try:
+                retning, output = vurder_produktport(case["afgraensning"])
+            except Exception as fejl:
+                resultater.append({"case":case["navn"],"forventet":case["forventet"],"faktisk":"fejl","bestaaet":False,"output":st.session_state.produktport_raa_output,"fejl":type(fejl).__name__})
+                # Bevar delresultater og stop; ingen ekstra kald efter en fejl.
+                break
             api_kald += 1
-            resultater.append({"case":case["navn"],"forventet":case["forventet"],"faktisk":retning,"bestaaet":retning == case["forventet"],"output":output})
+            resultater.append({"case":case["navn"],"forventet":case["forventet"],"faktisk":retning,"bestaaet":retning == case["forventet"],"output":st.session_state.produktport_raa_output})
     finally:
         st.session_state.valgt_problem = gammel_boks
     return resultater, api_kald
+
+
+def lav_produktport_testlog(resultater, api_kald):
+    linjer = [
+        "TESTTYPE: Niveau 5 – Produktport (5 cases)",
+        "TESTVERSION / COMMIT: ikke verificeret",
+        f"DATO/TID: {datetime.now(timezone.utc).isoformat()} (UTC)",
+    ]
+    for nr, case in enumerate(PRODUTPORT_CASES, start=1):
+        resultat = resultater[nr - 1] if nr <= len(resultater) else None
+        linjer.extend(["", f"CASE {nr}: {case['navn']}", f"Forventet: {case['forventet']}"])
+        if resultat is None:
+            linjer.extend(["Faktisk: ikke kørt", "Fejl: kørslen blev afbrudt før denne case", "Rå output: ikke tilgængeligt"])
+            continue
+        linjer.extend([f"Faktisk: {resultat['faktisk']}", f"Fejl: {resultat.get('fejl', 'ingen')}"])
+        linjer.append("Rå output – START")
+        # Ingen strip, forkortelse eller omskrivning af modeloutput.
+        linjer.append(resultat["output"] if resultat["output"] is not None else "[ikke tilgængeligt]")
+        linjer.append("Rå output – SLUT")
+    bestaaet = sum(1 for r in resultater if r["bestaaet"])
+    fejl = sum(1 for r in resultater if r.get("fejl"))
+    linjer.extend([
+        "", "SAMLET RESULTAT",
+        f"Bestået: {bestaaet}; fejlet: {len(resultater) - bestaaet}; ikke kørt: {len(PRODUTPORT_CASES) - len(resultater)}",
+        f"Rapporteret antal API-kald med returneret og fortolket svar: {api_kald}",
+        "Ved fejl kan et forsøgt kald være forbrugt uden at være talt med. Ingen automatisk genkørsel.",
+        f"Øvrige fejl/delresultater: {'afbrudt efter casefejl; se ovenfor' if fejl else 'ingen'}",
+    ])
+    return "\n".join(linjer)
 
 
 # TESTLAB – faste grænsecases til beslutningsmodellen.
@@ -699,6 +737,7 @@ if st.session_state.valgt_problem is None:
         st.divider()
         st.caption("Testniveau 5: Produktporten. Tester om et afgrænset problem skal blive mikroprodukt, gratis hjælp, møde eller stop.")
         if st.button("Kør Produktport-test (5 cases)", key="koer_produktport_test"):
+            st.session_state.produktport_testlog = None
             with st.spinner("Tester om porten kan lade være med at sælge, når den ikke bør…"):
                 try:
                     portresultater, api_kald = koer_produktport_test()
@@ -709,9 +748,15 @@ if st.session_state.valgt_problem is None:
                         ikon = "✅" if r["bestaaet"] else "❌"
                         st.write(f"{ikon} **{r['case']}** — forventet: {r['forventet']}, faktisk: {r['faktisk']}")
                         with st.expander(f"Se Produktport-case {nr}", expanded=not r["bestaaet"]):
-                            st.text(r["output"])
-                except Exception:
-                    st.error("Produktport-testen kunne ikke gennemføres. Prøv igen om lidt.")
+                            st.text(r["output"] if r["output"] is not None else "Rå output er ikke tilgængeligt.")
+                    st.session_state.produktport_testlog = lav_produktport_testlog(portresultater, api_kald)
+                except Exception as fejl:
+                    st.session_state.produktport_testlog = lav_produktport_testlog([], 0) + f"\nKørselsfejl: {type(fejl).__name__}. Resultater og antal API-kald kunne ikke fastslås."
+                    st.error("Produktport-testen kunne ikke gennemføres. Bevar resultatet; genkør ikke automatisk.")
+
+        if st.session_state.get("produktport_testlog"):
+            st.write("**Produktport-testlog – kopiér hele kørslen**")
+            st.code(st.session_state.produktport_testlog, language=None)
 
     st.subheader("Noget du kan genkende?")
     st.write("Vælg den situation, der passer bedst på det, du oplever lige nu.")
