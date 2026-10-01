@@ -38,7 +38,20 @@ if "afgraensning" not in st.session_state:
 if "afgraenser_feedback" not in st.session_state:
     st.session_state.afgraenser_feedback = None
 
+for navn, standard in {
+    "flow_fase": "spoergsmaal", "flow_retning": None, "flow_besked": None,
+    "flow_fejl": None, "flow_haendelser": [], "flow_kald": 0,
+    "flow_log_aktiv": False, "flow_raa_output": None,
+}.items():
+    if navn not in st.session_state:
+        st.session_state[navn] = standard
+
 st.title("leanAKey")
+
+
+def gem_flow_output(output):
+    if st.session_state.get("flow_log_aktiv", False):
+        st.session_state.flow_raa_output = output
 
 
 def foerste_spoergsmaal(problem, virksomhed):
@@ -265,6 +278,7 @@ Samtalen indtil nu:
         model="gpt-5.6-luna",
         input=prompt
     )
+    gem_flow_output(response.output_text)
     tekst = response.output_text.strip()
 
     if tekst.upper().startswith("OBSERVÉR:") or tekst.upper().startswith("OBSERVER:"):
@@ -352,6 +366,7 @@ Samtalen:
         model="gpt-5.6-luna",
         input=prompt
     )
+    gem_flow_output(response.output_text)
     return response.output_text.strip()
 
 
@@ -381,6 +396,7 @@ eller
 VIDERE: <kort begrundelse>
 """
     response = client.responses.create(model="gpt-5.6-luna", input=prompt)
+    gem_flow_output(response.output_text)
     tekst = response.output_text.strip()
     if tekst.upper().startswith("SPØRG:") or tekst.upper().startswith("SPORG:"):
         return "spoerg", tekst.split(":", 1)[1].strip()
@@ -442,6 +458,7 @@ BEGRUNDELSE: <kort, konkret begrundelse baseret på sagen>
 Kundens startboks:\n{st.session_state.valgt_problem}\n\nAfgrænserens output:\n{afgraensning}
 """
     response = client.responses.create(model="gpt-5.6-luna", input=prompt)
+    gem_flow_output(response.output_text)
     # Bevar rå output til Testlab uden at ændre den eksisterende fortolkning.
     st.session_state.produktport_raa_output = response.output_text
     tekst = response.output_text.strip()
@@ -534,6 +551,142 @@ def lav_produktport_testlog(resultater, api_kald):
         "Ved fejl kan et forsøgt kald være forbrugt uden at være talt med. Ingen automatisk genkørsel.",
         f"Øvrige fejl/delresultater: {'afbrudt efter casefejl; se ovenfor' if fejl else 'ingen'}",
     ])
+    return "\n".join(linjer)
+
+
+def nulstil_kundeflow():
+    for navn in ("aktuelt_spoergsmaal", "observation_mangler", "undersoegelse_klar",
+                 "udenfor_lean", "afgraensning", "afgraenser_feedback",
+                 "flow_retning", "flow_besked", "flow_fejl", "flow_raa_output"):
+        st.session_state[navn] = None
+    st.session_state.samtale = []
+    st.session_state.flow_haendelser = []
+    st.session_state.flow_kald = 0
+    st.session_state.flow_fase = "spoergsmaal"
+    st.session_state.flow_log_aktiv = False
+    # Fjern også tidligere formularværdier ved et nyt forløb.
+    for navn in list(st.session_state.keys()):
+        if navn.startswith("svar_"):
+            del st.session_state[navn]
+
+
+def kald_flow_rolle(rolle, funktion, *argumenter):
+    haendelse = {"rolle": rolle, "tid": datetime.now(timezone.utc).isoformat(),
+                 "svar_nr": len(st.session_state.samtale),
+                 "raa_output": None, "resultat": None, "fejl": None}
+    st.session_state.flow_haendelser.append(haendelse)
+    st.session_state.flow_raa_output = None
+    st.session_state.flow_log_aktiv = True
+    st.session_state.flow_kald += 1
+    try:
+        resultat = funktion(*argumenter)
+        haendelse["resultat"] = resultat
+        return resultat
+    except Exception as fejl:
+        haendelse["fejl"] = type(fejl).__name__
+        raise
+    finally:
+        haendelse["raa_output"] = st.session_state.flow_raa_output
+        st.session_state.flow_log_aktiv = False
+
+
+def afslut_kundeflow(retning, besked):
+    st.session_state.flow_retning = retning
+    st.session_state.flow_besked = besked
+    st.session_state.flow_fase = "afsluttet"
+    st.session_state.aktuelt_spoergsmaal = None
+
+
+def fortsaet_kundeflow():
+    """Kør eksisterende roller én gang pr. fase; stop ved spørgsmål, afslutning eller fejl."""
+    if st.session_state.flow_fejl or st.session_state.flow_fase == "afsluttet":
+        return
+    try:
+        if st.session_state.flow_fase == "undersoeger":
+            # Bevar den eksisterende sikkerhedsgrænse: ingen ekstra spørgsmål efter ti svar.
+            if len(st.session_state.samtale) >= 10:
+                st.session_state.flow_fase = "afgraenser"
+            else:
+                handling, tekst = kald_flow_rolle("Undersøger", vurder_naeste_skridt)
+                if handling == "udenfor":
+                    st.session_state.udenfor_lean = tekst
+                    afslut_kundeflow("stop", tekst)
+                    return
+                if handling == "observer":
+                    st.session_state.observation_mangler = tekst
+                    afslut_kundeflow("gratis", tekst)
+                    return
+                if handling == "spoerg":
+                    st.session_state.aktuelt_spoergsmaal = tekst
+                    st.session_state.flow_fase = "spoergsmaal"
+                    return
+                st.session_state.undersoegelse_klar = tekst
+                st.session_state.flow_fase = "afgraenser"
+
+        if st.session_state.flow_fase == "afgraenser":
+            st.session_state.afgraensning = kald_flow_rolle("Afgrænser", lav_afgraensning)
+            st.session_state.flow_fase = "feedback"
+
+        if st.session_state.flow_fase == "feedback":
+            handling, tekst = kald_flow_rolle("Returgate", vurder_afgraenser_feedback)
+            st.session_state.afgraenser_feedback = tekst
+            if handling == "spoerg":
+                if len(st.session_state.samtale) >= 10:
+                    st.session_state.flow_haendelser.append({"rolle": "Sikkerhedsgrænse", "resultat": "Returspørgsmål ikke stillet efter ti svar", "raa_output": None, "fejl": None})
+                    afslut_kundeflow("gratis", "Der er stadig noget, der skal afklares. Der er ikke grundlag for et køb i dette forløb.")
+                else:
+                    st.session_state.aktuelt_spoergsmaal = tekst
+                    st.session_state.undersoegelse_klar = None
+                    st.session_state.afgraensning = None
+                    st.session_state.afgraenser_feedback = None
+                    st.session_state.flow_fase = "spoergsmaal"
+                return
+            if handling == "observer":
+                st.session_state.observation_mangler = tekst
+                afslut_kundeflow("gratis", tekst)
+                return
+            st.session_state.flow_fase = "produktport"
+
+        if st.session_state.flow_fase == "produktport":
+            retning, output = kald_flow_rolle("Produktport", vurder_produktport, st.session_state.afgraensning)
+            # Fortolkeren i den eksisterende port falder tilbage til STOP ved ugyldigt output.
+            # Et ugyldigt svar vises som teknisk fejl frem for en faglig kundeafslutning.
+            gyldig_retning = any(linje.upper().startswith("RETNING:") and linje.split(":", 1)[1].strip().upper() in {"MIKROPRODUKT", "GRATIS", "MØDE", "MODE", "STOP"} for linje in output.splitlines())
+            if not gyldig_retning:
+                raise ValueError("Ugyldig Produktport-retning")
+            if st.session_state.valgt_problem == "Har jeg skjult potentiale?" and retning == "mikroprodukt":
+                # Håndhæv den eksisterende regel også ved et afvigende modelsvar.
+                st.session_state.flow_haendelser.append({"rolle": "Potentiale-regel", "resultat": "Direkte mikroprodukt afvist; GRATIS. Rå portoutput bevaret.", "raa_output": None, "fejl": None})
+                afslut_kundeflow("gratis", "Et muligt potentiale er ikke i sig selv grundlag for et køb. Hvis du opdager et konkret lille problem, kan du undersøge det i et separat forløb.")
+                return
+            begrundelse = "\n".join(linje.split(":", 1)[1].strip() for linje in output.splitlines() if linje.upper().startswith("BEGRUNDELSE:"))
+            afslut_kundeflow(retning, begrundelse)
+    except Exception as fejl:
+        st.session_state.flow_fejl = type(fejl).__name__
+        st.session_state.flow_haendelser.append({"rolle": "Forløbsfejl", "resultat": st.session_state.flow_fase, "raa_output": None, "fejl": type(fejl).__name__})
+        # Ingen gentagelse ved rerun; kunden kan starte et nyt forløb eksplicit.
+
+
+def lav_kundeflow_log():
+    linjer = ["TESTTYPE: Normalt ende-til-ende-forløb", "TESTVERSION / COMMIT: ikke verificeret",
+              f"LOGTID: {datetime.now(timezone.utc).isoformat()} (UTC)",
+              f"VALGT BOKS: {st.session_state.valgt_problem}",
+              f"VIRKSOMHED: {st.session_state.virksomhed}"]
+    for nr, punkt in enumerate(st.session_state.samtale, start=1):
+        linjer.extend(["", f"SPØRGSMÅL {nr}: {punkt['spoergsmaal']}", f"SVAR {nr}: {punkt['svar']}"])
+    for nr, haendelse in enumerate(st.session_state.flow_haendelser, start=1):
+        linjer.extend(["", f"HÆNDELSE {nr}: {haendelse['rolle']}",
+                      f"TID: {haendelse.get('tid', 'ikke tilgængeligt')}",
+                      f"EFTER KUNDESVAR NR.: {haendelse.get('svar_nr', 'ikke tilgængeligt')}",
+                      f"Fortolket resultat: {haendelse['resultat']}",
+                      f"Fejl: {haendelse['fejl'] or 'ingen'}", "Rå output – START",
+                      haendelse["raa_output"] if haendelse["raa_output"] is not None else "[ikke tilgængeligt / ingen AI i dette trin]",
+                      "Rå output – SLUT"])
+    linjer.extend(["", f"ENDELIG KUNDERETNING: {st.session_state.flow_retning or 'ikke afsluttet'}",
+                  f"KUNDEBESKED: {st.session_state.flow_besked or ''}",
+                  f"FASE: {st.session_state.flow_fase}", f"FORLØBSFEJL: {st.session_state.flow_fejl or 'ingen'}",
+                  f"Planlagte rollekald forsøgt: {st.session_state.flow_kald}",
+                  "Faktiske API-forsøg, tokens og pris er ikke målt; SDK kan genforsøge et netværkskald."])
     return "\n".join(linjer)
 
 
@@ -781,6 +934,8 @@ if st.session_state.valgt_problem is None:
 
     for problem in problemer:
         if st.button(problem, use_container_width=True):
+            nulstil_kundeflow()
+            st.session_state.virksomhed = None
             st.session_state.valgt_problem = problem
             st.session_state.samtale = []
             st.session_state.aktuelt_spoergsmaal = None
@@ -818,7 +973,7 @@ elif st.session_state.virksomhed is None:
         st.rerun()
 
 
-# SKÆRM 3 – dynamisk undersøgelse
+# SKÆRM 3 – én sammenhængende samtale med automatiske interne overgange
 else:
     st.subheader("Lad os se lidt nærmere på det")
 
@@ -827,185 +982,57 @@ else:
             st.write(f"**Spørgsmål:** {punkt['spoergsmaal']}")
             st.write(f"**Dit svar:** {punkt['svar']}")
 
-    if st.session_state.udenfor_lean:
-        st.info("Det her ser ikke ud til primært at være en opgave om at forbedre en arbejdsgang eller proces.")
-        st.write(f"**Vurdering:** {st.session_state.udenfor_lean}")
-        st.write("leanAKey stopper derfor her i stedet for at presse problemet ind i en LEAN-løsning.")
-
-    elif st.session_state.observation_mangler:
-        st.info(
-            "Her giver det mere mening at undersøge noget i det virkelige arbejde "
-            "end at gætte videre med flere spørgsmål."
-        )
-        st.write(f"**Det vi mangler at vide:** {st.session_state.observation_mangler}")
-
-        if st.session_state.afgraensning is None:
-            if st.button("Send til Afgrænseren", use_container_width=True):
-                try:
-                    st.session_state.afgraensning = lav_afgraensning()
-                    st.rerun()
-                except Exception:
-                    st.error(
-                        "Der opstod en fejl ved forbindelsen til AI-tjenesten. "
-                        "Prøv igen om lidt."
-                    )
-                    st.stop()
-        else:
-            st.divider()
-            st.subheader("Afgrænserens vurdering")
-            st.text(st.session_state.afgraensning)
-
-    elif st.session_state.undersoegelse_klar:
-        st.success("Undersøgeren vurderer, at der nu er nok konkret information til næste fase.")
-        st.write(f"**Afdækket grundlag:** {st.session_state.undersoegelse_klar}")
-
-        if st.session_state.afgraensning is None:
-            if st.button("Send til Afgrænseren", use_container_width=True):
-                try:
-                    st.session_state.afgraensning = lav_afgraensning()
-                    st.rerun()
-                except Exception:
-                    st.error(
-                        "Der opstod en fejl ved forbindelsen til AI-tjenesten. "
-                        "Prøv igen om lidt."
-                    )
-                    st.stop()
-        else:
-            st.divider()
-            st.subheader("Afgrænserens vurdering")
-            st.text(st.session_state.afgraensning)
-
-            if st.session_state.afgraenser_feedback is None:
-                if st.button("Kontrollér om der mangler noget", use_container_width=True):
-                    try:
-                        handling, tekst = vurder_afgraenser_feedback()
-                        if handling == "spoerg":
-                            st.session_state.aktuelt_spoergsmaal = tekst
-                            st.session_state.undersoegelse_klar = None
-                            st.session_state.afgraensning = None
-                            st.rerun()
-                        elif handling == "observer":
-                            st.session_state.observation_mangler = tekst
-                            st.session_state.undersoegelse_klar = None
-                            st.session_state.afgraensning = None
-                            st.rerun()
-                        else:
-                            st.session_state.afgraenser_feedback = tekst
-                            st.rerun()
-                    except Exception:
-                        st.error("Der opstod en fejl ved forbindelsen til AI-tjenesten. Prøv igen om lidt.")
-                        st.stop()
+    if st.session_state.flow_fejl:
+        st.error("Vi kunne ikke færdiggøre vurderingen lige nu. Dine svar er bevaret i dette forløb.")
+    elif st.session_state.flow_fase == "afsluttet":
+        retning = st.session_state.flow_retning
+        if retning == "mikroprodukt":
+            st.success("Dit afgrænsede problem ser egnet ud til et lille, enkelt værktøj.")
+            st.write(st.session_state.flow_besked)
+            st.write("Du kan endnu ikke købe eller få lavet værktøjet her.")
+        elif retning == "gratis":
+            if st.session_state.observation_mangler:
+                st.info("Næste skridt er at observere det, vi mangler at vide, i dit daglige arbejde.")
+                st.write(st.session_state.observation_mangler)
             else:
-                st.info(f"Klar til næste fase: {st.session_state.afgraenser_feedback}")
-
-    elif len(st.session_state.samtale) >= 10:
-        st.info(
-            "Sikkerhedsgrænsen på 10 spørgsmål er nået. "
-            "Sagen kan nu sendes videre til Afgrænseren uden at Undersøgeren konkluderer."
-        )
-
-        if st.session_state.afgraensning is None:
-            if st.button("Send til Afgrænseren", use_container_width=True):
-                try:
-                    st.session_state.afgraensning = lav_afgraensning()
-                    st.rerun()
-                except Exception:
-                    st.error(
-                        "Der opstod en fejl ved forbindelsen til AI-tjenesten. "
-                        "Prøv igen om lidt."
-                    )
-                    st.stop()
+                st.info("Du kan komme videre uden at købe et værktøj her.")
+                st.write(st.session_state.flow_besked)
+            st.write("Der er ikke grundlag for et køb i dette forløb.")
+        elif retning == "moede":
+            st.info("Problemstillingen ser ud til at involvere flere forhold og bør ikke presses ned i et lille standardværktøj.")
+            st.write(st.session_state.flow_besked)
+            st.write("Du har mulighed for et gratis, uforpligtende møde med Annette om dit problem. Tidspunkt aftales direkte med Annette.")
         else:
-            st.divider()
-            st.subheader("Afgrænserens vurdering")
-            st.text(st.session_state.afgraensning)
-
+            st.info("Mikro LEAN Manager er ikke det rette sted at hjælpe med det beskrevne problem.")
+            st.write(st.session_state.flow_besked)
     else:
         st.write(st.session_state.aktuelt_spoergsmaal)
-
         svar = st.text_area(
             "Skriv med dine egne ord:",
             placeholder="Du behøver ikke kende årsagen – beskriv bare, hvad du oplever.",
             key=f"svar_{len(st.session_state.samtale)}"
         )
-
         if st.button("Gem svar og fortsæt", use_container_width=True):
             if svar.strip():
-                st.session_state.samtale.append(
-                    {
-                        "spoergsmaal": st.session_state.aktuelt_spoergsmaal,
-                        "svar": svar.strip()
-                    }
-                )
-
-                if len(st.session_state.samtale) < 10:
-                    try:
-                        handling, tekst = vurder_naeste_skridt()
-                        if handling == "udenfor":
-                            st.session_state.udenfor_lean = tekst
-                            st.session_state.aktuelt_spoergsmaal = None
-                        elif handling == "observer":
-                            st.session_state.observation_mangler = tekst
-                            st.session_state.aktuelt_spoergsmaal = None
-                        elif handling == "klar":
-                            st.session_state.undersoegelse_klar = tekst
-                            st.session_state.aktuelt_spoergsmaal = None
-                        else:
-                            st.session_state.aktuelt_spoergsmaal = tekst
-                    except Exception:
-                        st.error(
-                            "Der opstod en fejl ved forbindelsen til AI-tjenesten. "
-                            "Prøv igen om lidt."
-                        )
-                        st.stop()
-
+                st.session_state.samtale.append({
+                    "spoergsmaal": st.session_state.aktuelt_spoergsmaal,
+                    "svar": svar.strip()
+                })
+                st.session_state.flow_fase = "undersoeger"
+                with st.spinner("Vi ser nærmere på dine svar…"):
+                    fortsaet_kundeflow()
                 st.rerun()
             else:
                 st.warning("Skriv lidt om det, du oplever, før du fortsætter.")
 
-    # TESTHJÆLP – samler hele forløbet, så det let kan kopieres til gennemgang.
-    # Fjernes eller skjules i den færdige kundeversion.
-    if st.session_state.samtale:
+    # Intern testvisning er kun synlig, når URL'en indeholder ?testlog=1.
+    if st.query_params.get("testlog") == "1" and st.session_state.samtale:
         st.divider()
-        with st.expander("Testlog – kopiér hele forløbet", expanded=False):
-            loglinjer = [
-                f"VALGT BOKS: {st.session_state.valgt_problem}",
-                f"VIRKSOMHED: {st.session_state.virksomhed}",
-                ""
-            ]
-            for nummer, punkt in enumerate(st.session_state.samtale, start=1):
-                loglinjer.extend([
-                    f"SPØRGSMÅL {nummer}: {punkt['spoergsmaal']}",
-                    f"SVAR {nummer}: {punkt['svar']}",
-                    ""
-                ])
-            if st.session_state.udenfor_lean:
-                loglinjer.extend([
-                    f"UNDERSØGER: UDENFOR: {st.session_state.udenfor_lean}",
-                    ""
-                ])
-            if st.session_state.observation_mangler:
-                loglinjer.extend([
-                    f"UNDERSØGER: OBSERVÉR: {st.session_state.observation_mangler}",
-                    ""
-                ])
-            if st.session_state.undersoegelse_klar:
-                loglinjer.extend([
-                    f"UNDERSØGER: KLAR: {st.session_state.undersoegelse_klar}",
-                    ""
-                ])
-            if st.session_state.afgraensning:
-                loglinjer.extend([
-                    "AFGRÆNSERENS VURDERING:",
-                    st.session_state.afgraensning
-                ])
-            st.code("\n".join(loglinjer), language=None)
+        with st.expander("Intern testlog – kopiér hele forløbet", expanded=False):
+            st.code(lav_kundeflow_log(), language=None)
 
-    if st.button("← Tilbage", key="tilbage_undersoegelse"):
+    if st.button("Start et nyt forløb", key="nyt_forloeb"):
+        nulstil_kundeflow()
         st.session_state.virksomhed = None
-        st.session_state.samtale = []
-        st.session_state.aktuelt_spoergsmaal = None
-        st.session_state.observation_mangler = None
-        st.session_state.undersoegelse_klar = None
-        st.session_state.afgraensning = None
+        st.session_state.valgt_problem = None
         st.rerun()
