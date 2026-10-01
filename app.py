@@ -413,6 +413,15 @@ Hårde regler:
 - Når ét lille, afgrænset problem og dets betydning eller gentagelse er dokumenteret, kan
   MIKROPRODUKT være relevant, hvis ét enkelt undersøgelsesværktøj realistisk kan give ny viden
   om et mønster. Kræv ikke, at årsagen eller stedet i procesforløbet allerede er kortlagt.
+- Ny viden skal være nødvendig eller relevant for at forstå det allerede dokumenterede og
+  afgrænsede problem. At yderligere information kunne være interessant, er ikke nok.
+- Skab ikke et nyt undersøgelsesspørgsmål, mønster eller en ny ukendt alene for at gøre et
+  MIKROPRODUKT relevant. Behovet for ny viden skal have grundlag i sagens oplysninger;
+  fortsæt ikke undersøgelsen, indtil der findes noget, der kan sælges.
+- Hvis kunden allerede har den centrale viden, som det oplagte simple undersøgelsesværktøj
+  skulle frembringe, må du ikke retfærdiggøre et salg ved selv at introducere et nyt mønster,
+  spørgsmål eller ukendt. Uden selvstændigt dokumenteret grundlag for MØDE eller STOP skal
+  retningen være GRATIS. Denne regel gælder også, selv om mere registrering er mulig.
 - Vælg GRATIS, hvis nødvendig information mangler for overhovedet at vurdere et relevant enkelt
   værktøj. Opfind ikke et produkt eller gæt på et problem for at omgå manglende grundlag.
 - Manglende mikroprodukt-egnethed er ikke i sig selv grund til MØDE. MØDE kræver selvstændigt
