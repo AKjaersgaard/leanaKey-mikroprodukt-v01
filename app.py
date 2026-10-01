@@ -397,9 +397,9 @@ Din opgave er ikke at bygge eller sælge et produkt. Du skal beskytte kunden mod
 Vælg præcis én retning:
 MIKROPRODUKT = ét lille, klart afgrænset procesproblem kan realistisk undersøges med ét enkelt
 værktøj, og kunden kender ikke allerede det svar, værktøjet ville vise.
-GRATIS = der mangler én enkel observation/oplysning før et produkt kan vurderes, eller kunden
-kan komme videre med en kort gratis instruktion. Der må ikke sælges endnu.
-MØDE = flere forbundne problemer, afhængigheder eller kompleksitet gør sagen uegnet til ét
+GRATIS = der mangler nødvendig information for at vurdere et relevant enkelt værktøj, eller
+kunden kan komme videre med en kort gratis instruktion uden et nyt køb. Der må ikke sælges endnu.
+MØDE = dokumenterede flere forbundne problemer, afhængigheder eller kompleksitet gør sagen uegnet til ét
 mikroprodukt. Kunden bør tilbydes et gratis, uforpligtende møde med Annette.
 STOP = sagen er uden for LEAN/procesforbedring, eller der er ikke et reelt forbedringsproblem.
 
@@ -407,8 +407,19 @@ Hårde regler:
 - Et AFGRÆNSET problem er IKKE automatisk et MIKROPRODUKT.
 - 49 kr. må kun være ét lille problem + ét enkelt værktøj + kort vejledning.
 - Hvis kunden allerede ved, hvad et oplagt registrerings-/måleværktøj vil vise, vælg ikke MIKROPRODUKT.
-- Hvis der mangler en enkel konkret observation, vælg GRATIS frem for at gætte.
-- FLERE_FORBUNDNE skal normalt blive MØDE; pres ikke kompleksitet ned i et produkt.
+- Skeln mellem manglende grundlag for at forstå/afgrænse problemet og en ukendt årsag til et
+  allerede dokumenteret problem. En ukendt årsag er ikke i sig selv grund til GRATIS.
+- Når ét lille, afgrænset problem og dets betydning eller gentagelse er dokumenteret, kan
+  MIKROPRODUKT være relevant, hvis ét enkelt undersøgelsesværktøj realistisk kan give ny viden
+  om et mønster. Kræv ikke, at årsagen eller stedet i procesforløbet allerede er kortlagt.
+- Vælg GRATIS, hvis nødvendig information mangler for overhovedet at vurdere et relevant enkelt
+  værktøj. Opfind ikke et produkt eller gæt på et problem for at omgå manglende grundlag.
+- Manglende mikroprodukt-egnethed er ikke i sig selv grund til MØDE. MØDE kræver selvstændigt
+  dokumenteret kompleksitet, flere forbundne problemer eller afhængigheder i sagens oplysninger.
+- Hvis et oplagt værktøj blot gentager kendt viden, og der ikke er et selvstændigt grundlag for
+  MØDE eller STOP, vælg GRATIS. Opfind ikke afhængigheder eller kompleksitet.
+- FLERE_FORBUNDNE skal normalt blive MØDE, når sagens oplysninger dokumenterer de forbundne
+  problemer; pres ikke kompleksitet ned i et produkt.
 - Startboksen "Har jeg skjult potentiale?" må aldrig ende direkte i MIKROPRODUKT. Brug GRATIS,
   MØDE eller STOP. Et eventuelt konkret lille problem må undersøges separat senere.
 - Opfind ikke fakta, årsager, økonomisk gevinst eller forbedringer.
