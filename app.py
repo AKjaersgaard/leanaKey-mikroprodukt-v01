@@ -426,6 +426,18 @@ A: Besvarbar og beslutningskritisk. Kunden forventes rimeligt at kende svaret.
    kan ændre den forsvarlige slutretning.
 B: Beslutningskritisk, men kræver observation/data. Returgate vælger OBSERVÉR;
    fremkald ikke et gæt.
+PRIORITERING MELLEM A OG B:
+Vælg SPØRG, når den beslutningskritiske oplysning realistisk kan
+besvares af kunden ud fra eksisterende viden.
+
+Vælg ikke OBSERVÉR alene fordi oplysningen endnu ikke er givet.
+Vælg OBSERVÉR, når der er konkret grundlag for, at den nødvendige
+oplysning ikke pålideligt kan besvares uden observation,
+registrering eller måling af det faktiske arbejde.
+
+Fremkald ikke gæt og behandl ikke usikre vurderinger som sikre fakta.
+Hvis kunden efter spørgsmålet ikke ved det eller ikke kan svare
+forsvarligt, kan næste legitime handling være OBSERVÉR.
 C: Relevant ukendt om et allerede dokumenteret forbedringsproblem,
    som et muligt undersøgelsesværktøj netop kan belyse.
    Type C må kun bruges, når kundens oplysninger allerede dokumenterer et konkret forbedringsproblem.

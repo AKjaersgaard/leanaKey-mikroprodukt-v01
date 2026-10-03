@@ -135,6 +135,19 @@ class NormalFlowTests(unittest.TestCase):
             with self.subTest(instruction=instruction):
                 self.assertIn(instruction, contract)
 
+    def test_contract_prioritizes_answerable_information_without_forcing_guesses(self):
+        """Instruction check only; real A/B choices require the manual AI test."""
+        contract = self.ns["BESLUTNINGSKONTRAKT"]
+        for instruction in (
+            "Vælg SPØRG, når den beslutningskritiske oplysning realistisk kan\nbesvares af kunden ud fra eksisterende viden.",
+            "Vælg ikke OBSERVÉR alene fordi oplysningen endnu ikke er givet.",
+            "Vælg OBSERVÉR, når der er konkret grundlag for, at den nødvendige\noplysning ikke pålideligt kan besvares uden observation,\nregistrering eller måling af det faktiske arbejde.",
+            "Fremkald ikke gæt og behandl ikke usikre vurderinger som sikre fakta.",
+            "Hvis kunden efter spørgsmålet ikke ved det eller ikke kan svare\nforsvarligt, kan næste legitime handling være OBSERVÉR.",
+        ):
+            with self.subTest(instruction=instruction):
+                self.assertIn(instruction, contract)
+
     def test_isolated_contract_battery_and_state_restoration(self):
         original = deepcopy(dict(self.state))
         raw = "\nVIDERE: Hele begrundelsen.  \n"
